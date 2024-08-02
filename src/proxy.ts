@@ -4,20 +4,21 @@ import kv from './gateways/kv';
 export default {
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-		const auth = await firebase.auth(request, env);
-		if (auth instanceof Response) return auth;
-		const uid = auth;
-		const requestUrl = new URL(request.url);
 
+		const requestUrl = new URL(request.url);
 		// get proxy name from url and fetch from KV
 		const parts = requestUrl.pathname.split('/').filter(part => part);
-		const proxyName =	parts.at(1); // account for /proxy/${proxyName}
-		if (!proxyName) {
+		// /proxy/${uid}/${proxyName}
+		const routeUid =	parts.at(1);
+		const proxyName =	parts.at(2);
+		if (!routeUid || !proxyName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
-		const proxy = await kv.getProxy(env, uid, proxyName);
-		if (!proxy) {
-			return new Response('Invalid pathname', { status: 500 });
+		const proxy = await kv.getProxy(env, routeUid, proxyName);
+		const auth = await firebase.auth(request, proxy.authProviderPublicKey);
+		if (auth instanceof Response) return auth;
+		if (auth != routeUid) {
+			new Response('Invalid token', { status: 401 });
 		}
 		const pathName = parts.slice(2).join('/');
 		const apiUrl = proxy.apiUrl + (proxy.apiUrl.endsWith('/') ? '' : '/') + pathName;

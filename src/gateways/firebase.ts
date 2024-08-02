@@ -1,6 +1,6 @@
 export default {
 
-	async auth(request: Request, env: Env): Promise<string | Response> {
+	async auth(request: Request, publicFirebaseKey: string): Promise<string | Response> {
 		// Extract the ID token from the Authorization header
 		const authHeader = request.headers.get('Authorization');
 		if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -8,7 +8,7 @@ export default {
 		}
 
 		const idToken = authHeader.split(' ')[1];
-		const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.BACKMESH_FIREBASE_KEY}`, {
+		const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${publicFirebaseKey}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -18,7 +18,7 @@ export default {
 			})
 		});
 
-    const invalidTokResp = new Response('Invalid Firebase ID token', { status: 401 });
+    const invalidTokResp = new Response('Invalid token', { status: 401 });
 
 		if (!response.ok) {
 			console.error('Error verifying ID token:', response.statusText);
