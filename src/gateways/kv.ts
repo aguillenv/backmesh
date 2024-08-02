@@ -1,18 +1,32 @@
+export enum AuthProviderType {
+  // SUPABASE = 'supabase',
+  // AUTH0 = 'auth0',
+  FIREBASE = 'firebase',
+}
+
+export enum ProxySchemaVersion {
+  V1 = 'v1',
+}
+
 
 export type Proxy = {
   authProviderPublicKey: string;
-  authProviderUrl: string | undefined;
+  authProviderProjectId: string;
+  authProviderType: AuthProviderType;
   apiUrl: string;
   privateApiKey: string;
+  schemaVersion: ProxySchemaVersion;
 };
 
 // Type guard to check if an object is of type Proxy
 function isProxy(obj: any): obj is Proxy {
   return typeof obj === 'object' && obj !== null &&
          typeof obj.authProviderPublicKey === 'string' &&
-         (typeof obj.authProviderUrl === 'string' || obj.authProviderUrl === undefined) &&
+         typeof obj.authProviderProjectId === 'string' &&
+         Object.values(AuthProviderType).includes(obj.authProviderType) &&
          typeof obj.apiUrl === 'string' &&
-         typeof obj.privateApiKey === 'string';
+         typeof obj.privateApiKey === 'string' &&
+         Object.values(ProxySchemaVersion).includes(obj.schemaVersion);
 }
 
 async function set<T>(env: Env, key: string, value: T) {

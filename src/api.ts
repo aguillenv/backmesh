@@ -13,6 +13,7 @@ export default {
 			return new Response('Invalid pathname', { status: 500 });
 		}
 
+		// new proxy
 		if (request.method === 'POST') {
 			if (!request.body) {
 				return new Response('No body in request', { status: 500 });
