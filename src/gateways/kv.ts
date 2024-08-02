@@ -1,6 +1,6 @@
 
 export type Proxy = {
-  publicKey: string;
+  authProviderPublicKey: string;
   authProviderUrl: string | undefined;
   apiUrl: string;
   privateApiKey: string;
@@ -9,7 +9,7 @@ export type Proxy = {
 // Type guard to check if an object is of type Proxy
 function isProxy(obj: any): obj is Proxy {
   return typeof obj === 'object' && obj !== null &&
-         typeof obj.publicKey === 'string' &&
+         typeof obj.authProviderPublicKey === 'string' &&
          (typeof obj.authProviderUrl === 'string' || obj.authProviderUrl === undefined) &&
          typeof obj.apiUrl === 'string' &&
          typeof obj.privateApiKey === 'string';

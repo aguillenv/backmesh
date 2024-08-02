@@ -3,7 +3,7 @@ import kv from './gateways/kv';
 
 export default {
 	async proxy(request: Request, env: Env, ctx: ExecutionContext) {
-		const auth = await firebase.auth(request, env);
+		const auth = await firebase.auth(request, env.BACKMESH_FIREBASE_KEY);
 		if (auth instanceof Response) return auth;
 		const uid = auth;
 		const requestUrl = new URL(request.url);
