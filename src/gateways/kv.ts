@@ -8,7 +8,6 @@ export enum ProxySchemaVersion {
   V1 = 'v1',
 }
 
-
 export type Proxy = {
   authProviderPublicKey: string;
   authProviderProjectId: string;
@@ -18,7 +17,7 @@ export type Proxy = {
   schemaVersion: ProxySchemaVersion;
 };
 
-// Type guard to check if an object is of type Proxy
+// Type guard to check if an object is of type Proxy at runtime
 function isProxy(obj: any): obj is Proxy {
   return typeof obj === 'object' && obj !== null &&
          typeof obj.authProviderPublicKey === 'string' &&
