@@ -21,7 +21,7 @@ routes = [
 # Note: Use secrets to store sensitive data.
 # - https://developers.cloudflare.com/workers/configuration/secrets/
 [vars]
-FIREBASE_KEY="AIzaSyBWgyupvEWj7S4viMK_1NCfYf5VUXCplgU"
+BACKMESH_FIREBASE_KEY="AIzaSyBWgyupvEWj7S4viMK_1NCfYf5VUXCplgU"
 
 # Bind the Workers AI model catalog. Run machine learning models, powered by serverless GPUs, on Cloudflare’s global network
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#workers-ai
@@ -55,14 +55,14 @@ FIREBASE_KEY="AIzaSyBWgyupvEWj7S4viMK_1NCfYf5VUXCplgU"
 # Durable Objects can live for as long as needed. Use these when you need a long-running "server", such as in realtime apps.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#durable-objects
 # [[durable_objects.bindings]]
-# name = "MY_DURABLE_OBJECT"
-# class_name = "MyDurableObject"
+# name = "RATE_LIMITER"
+# class_name = "RateLimiter"
 
 # Durable Object migrations.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#migrations
 # [[migrations]]
-# tag = "v1"
-# new_classes = ["MyDurableObject"]
+# tag = "v1" # Should be unique for each entry
+# new_classes = ["RateLimiter"]
 
 # Bind a Hyperdrive configuration. Use to accelerate access to your existing databases from Cloudflare Workers.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#hyperdrive
@@ -110,3 +110,16 @@ FIREBASE_KEY="AIzaSyBWgyupvEWj7S4viMK_1NCfYf5VUXCplgU"
 # [[vectorize]]
 # binding = "MY_INDEX"
 # index_name = "my-index"
+
+# The rate limiting API is in open beta.
+# [[unsafe.bindings]]
+# name = "MY_RATE_LIMITER"
+# type = "ratelimit"
+# An identifier you define, that is unique to your Cloudflare account.
+# Must be an integer.
+# namespace_id = "1001"
+
+# Limit: the number of tokens allowed within a given period in a single
+# Cloudflare location
+# Period: the duration of the period, in seconds. Must be either 10 or 60
+# simple = { limit = 100, period = 60 }

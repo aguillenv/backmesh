@@ -10,8 +10,8 @@
 
 export default {
 
-	async verifyFirebaseToken(env: Env, idToken: string) {
-		const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FIREBASE_KEY}`, {
+	async getFirebaseUid(env: Env, idToken: string) {
+		const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.BACKMESH_FIREBASE_KEY}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -26,9 +26,12 @@ export default {
 			return false;
 		}
 
-		// TODO import firebase types
-		const data = await response.json() as { users?: any[] }
-		return data && data.users && data.users.length > 0;
+		// TODO import firebase types?
+		interface FirebaseResponse {
+			users?: { localId: string }[];
+		}
+		const data: FirebaseResponse = await response.json();
+		return data && data.users && data.users.length > 0 ? data.users[0].localId : undefined;
 	},
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
@@ -39,9 +42,9 @@ export default {
 		}
 
 		const idToken = authHeader.split(' ')[1];
-		const isValid = await this.verifyFirebaseToken(env, idToken);
+		const uid = await this.getFirebaseUid(env, idToken);
 
-		if (!isValid) {
+		if (uid === undefined) {
 			return new Response('Invalid Firebase ID token', { status: 401 });
 		}
 
