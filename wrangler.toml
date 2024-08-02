@@ -2,7 +2,6 @@
 name = "edge"
 main = "src/index.ts"
 compatibility_date = "2024-08-01"
-compatibility_flags = ["nodejs_compat"]
 
 routes = [
 	{ pattern = "edge.backmesh.com", custom_domain = true }

@@ -23,7 +23,7 @@ export default {
 
 		if (!response.ok) {
 			console.error('Error verifying ID token:', response.statusText);
-			return false;
+			return undefined;
 		}
 
 		// TODO import firebase types?
@@ -31,7 +31,7 @@ export default {
 			users?: { localId: string }[];
 		}
 		const data: FirebaseResponse = await response.json();
-		return data && data.users && data.users.length > 0 ? data.users[0].localId : undefined;
+		return (data && data.users && data.users.length > 0) ? data.users[0].localId : undefined;
 	},
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
