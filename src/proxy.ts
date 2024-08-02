@@ -1,4 +1,5 @@
 import firebase from './gateways/firebase';
+import kv from './gateways/kv';
 
 export default {
 
@@ -6,20 +7,25 @@ export default {
 		const auth = await firebase.auth(request, env);
 		if (auth instanceof Response) return auth;
 		const uid = auth;
-
 		const requestUrl = new URL(request.url);
+
+		// get proxy name from url and fetch from KV
 		const parts = requestUrl.pathname.split('/').filter(part => part);
-		// Remove the first part
-		if (parts.length > 0) {
-			parts.shift();
+		const proxyName =	parts.at(1); // account for /proxy/${proxyName}
+		if (!proxyName) {
+			return new Response('Invalid pathname', { status: 500 });
 		}
-		const pathName = parts.join('/');
-		const apiUrl = 'https://api.openai.com/' + pathName;
+		const proxy = await kv.getProxy(env, uid, proxyName);
+		if (!proxy) {
+			return new Response('Invalid pathname', { status: 500 });
+		}
+		const pathName = parts.slice(2).join('/');
+		const apiUrl = proxy.apiUrl + (proxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
 
 		const init = {
 			method: request.method,
 			headers: {
-				'Authorization': `Bearer ${env.OPENAI_KEY}`,
+				'Authorization': `Bearer ${proxy.privateApiKey}`,
 				'Content-Type': 'application/json',
 			},
 			body: await request.clone().text(),

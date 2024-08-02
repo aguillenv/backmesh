@@ -7,12 +7,18 @@ routes = [
 	{ pattern = "edge.backmesh.com", custom_domain = true }
 ]
 
+# Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
+[[kv_namespaces]]
+binding = "BACKMESH_KV"
+id = "67b1d8b6ace44c26b64fe00190a3b37f"
+
 # Automatically place your workloads in an optimal location to minimize latency.
 # If you are running back-end logic in a Worker, running it closer to your back-end infrastructure
 # rather than the end user may result in better performance.
 # Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-# [placement]
-# mode = "smart"
+[placement]
+mode = "smart"
 
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Docs:
@@ -67,12 +73,6 @@ BACKMESH_FIREBASE_KEY="AIzaSyBWgyupvEWj7S4viMK_1NCfYf5VUXCplgU"
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#hyperdrive
 # [[hyperdrive]]
 # binding = "MY_HYPERDRIVE"
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
-# Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
-# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
-# [[kv_namespaces]]
-# binding = "MY_KV_NAMESPACE"
 # id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # Bind an mTLS certificate. Use to present a client certificate when communicating with another service.

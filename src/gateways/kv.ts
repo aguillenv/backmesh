@@ -1,0 +1,46 @@
+
+export type Proxy = {
+  publicKey: string;
+  authProviderUrl: string | undefined;
+  apiUrl: string;
+  privateApiKey: string;
+};
+
+// Type guard to check if an object is of type Proxy
+function isProxy(obj: any): obj is Proxy {
+  return typeof obj === 'object' && obj !== null &&
+         typeof obj.publicKey === 'string' &&
+         (typeof obj.authProviderUrl === 'string' || obj.authProviderUrl === undefined) &&
+         typeof obj.apiUrl === 'string' &&
+         typeof obj.privateApiKey === 'string';
+}
+
+async function set<T>(env: Env, key: string, value: T) {
+  const jsonValue = JSON.stringify(value);
+  await env.BACKMESH_KV.put(key, jsonValue);
+}
+
+async function get<T>(env: Env, key: string): Promise<T> {
+  const value = await env.BACKMESH_KV.get(key);
+  if (value === null) throw new Error(`No value for key: ${key}`);
+  return JSON.parse(value) as T;
+};
+
+export default {
+
+  async setProxy(env: Env, uid: string, proxyName: string, value: any) {
+    if (!isProxy(value)) {
+      throw new Error('Value does not match Proxy type');
+    }
+    await set<Proxy>(env, `${uid}/${proxyName}`, value);
+  },
+
+  async getProxy(env: Env, uid: string, proxyName: string): Promise<Proxy> {
+    const key = `${uid}/${proxyName}`;
+    const value = await get<Proxy>(env, key);
+    if (!isProxy(value)) {
+      throw new Error(`Retrieved value is not of Proxy type:\n${value}`);
+    }
+    return value;
+  },
+};
