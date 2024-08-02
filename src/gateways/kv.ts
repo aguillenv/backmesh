@@ -43,6 +43,30 @@ async function del(env: Env, key: string) {
   await env.BACKMESH_KV.delete(key);
 }
 
+// export enum Operator {
+//   EQ = 'eq',
+//   NEQ = 'neq',
+//   CONTAINS = 'contains',
+//   WILDCARD = 'wildcard',
+// }
+
+// export enum RuleSchemaVersion {
+//   V1 = 'v1',
+// }
+
+// export type RequestBodyRule = {
+//   field: string;
+//   operator: Operator;
+//   value: string;
+// }
+
+// export type AccessRule = {
+//   requestBodyRules: Array<RequestBodyRule>;
+//   value: string;
+//   operator: Operator;
+//   schemaVersion: RuleSchemaVersion;
+// };
+
 export default {
 
   async setProxy(env: Env, uid: string, proxyName: string, value: any) {
