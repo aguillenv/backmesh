@@ -26,6 +26,10 @@ async function get<T>(env: Env, key: string): Promise<T> {
   return JSON.parse(value) as T;
 };
 
+async function del(env: Env, key: string) {
+  await env.BACKMESH_KV.delete(key);
+}
+
 export default {
 
   async setProxy(env: Env, uid: string, proxyName: string, value: any) {
@@ -35,12 +39,17 @@ export default {
     await set<Proxy>(env, `${uid}/${proxyName}`, value);
   },
 
-  async getProxy(env: Env, uid: string, proxyName: string): Promise<Proxy> {
+  async getProxy(env: Env, uid: string, proxyName: string) {
     const key = `${uid}/${proxyName}`;
-    const value = await get<Proxy>(env, key);
-    if (!isProxy(value)) {
-      throw new Error(`Retrieved value is not of Proxy type:\n${value}`);
+    const proxy = await get<Proxy>(env, key);
+    if (!isProxy(proxy)) {
+      throw new Error(`Retrieved value is not of Proxy type:\n${proxy}`);
     }
-    return value;
+    return proxy;
+  },
+
+  async delProxy(env: Env, uid: string, proxyName: string) {
+    const key = `${uid}/${proxyName}`;
+    await del(env, key);
   },
 };

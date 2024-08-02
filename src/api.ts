@@ -29,6 +29,9 @@ export default {
 		} else if (request.method === 'GET') {
 			const proxy = await kv.getProxy(env, uid, proxyName);
 			return new Response(JSON.stringify(proxy), { status: 200 });
+		} else if (request.method === 'DELETE') {
+			await kv.delProxy(env, uid, proxyName);
+			return new Response('OK', { status: 200 });
 		} else {
 			return new Response('Not Found', { status: 404 });
 		}
