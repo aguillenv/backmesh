@@ -72,6 +72,21 @@ export default {
     return app;
   },
 
+  async getAllApiProxies(env: Env, uid: string): Promise<ApiProxy[]> {
+    const entries = await env.BACKMESH_KV.list({ prefix: `${uid}/` });
+
+    const proxyPromises = entries.keys.map(async (key) => {
+      const app = await get<ApiProxy>(env, key.name);
+      if (isApp(app)) {
+        return app;
+      } else {
+        throw new Error(`Retrieved value is not of ApiProxy type for key: ${key.name}`);
+      }
+    });
+
+    return Promise.all(proxyPromises);
+  },
+
   async delApiProxy(env: Env, uid: string, name: string) {
     const key = `${uid}/${name}`;
     await del(env, key);
