@@ -1,6 +1,16 @@
 import firebase from './gateways/firebase';
 import kv from './gateways/kv';
 
+async function handleRequest(callback: () => Promise<any>): Promise<Response> {
+	try {
+		const result = await callback();
+		return new Response(result instanceof Object ? JSON.stringify(result) : 'OK', { status: 200 });
+	} catch (error: any) {
+		const status = error instanceof TypeError ? 400 : 500;
+		return new Response(error.message ?? 'Unknown error', { status });
+	}
+}
+
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const auth = await firebase.auth(request, env.BACKMESH_FIREBASE_KEY);
@@ -24,36 +34,21 @@ export default {
 				if (!request.body) {
 					return new Response('No body in request', { status: 500 });
 				}
-				try {
-					await kv.newApiProxy(env, uid, name!, await request.json());
-				} catch (error: any) {
-					const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-					console.error(errorMessage);
-					return new Response(errorMessage, { status: 400 });
-				}
-				return new Response('OK', { status: 200 });
+				return handleRequest(async () => kv.newApiProxy(env, uid, name!, await request.json()));
 
 			case 'PUT':
 				if (!request.body) {
 					return new Response('No body in request', { status: 500 });
 				}
-				try {
-					await kv.editApiProxy(env, uid, name!, await request.json());
-				} catch (error: any) {
-					const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-					return new Response(errorMessage, { status: 400 });
-				}
-				return new Response('OK', { status: 200 });
+				return handleRequest(async () => kv.newApiProxy(env, uid, name!, await request.json()));
 
 			case 'GET':
-				const prox = name === undefined ?
-					await kv.getAllApiProxies(env, uid) :
-					await kv.getApiProxy(env, uid, name!);
-				return new Response(JSON.stringify(prox), { status: 200 });
+				return handleRequest(async () => name === undefined ?
+					kv.getAllApiProxies(env, uid) :
+					kv.getApiProxy(env, uid, name!));
 
 			case 'DELETE':
-				await kv.delApiProxy(env, uid, name!);
-				return new Response('OK', { status: 200 });
+				return handleRequest(async () => kv.delApiProxy(env, uid, name!));
 
 			default:
 				return new Response('Not Found', { status: 404 });

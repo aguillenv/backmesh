@@ -7,14 +7,13 @@ export default {
 
 		const requestUrl = new URL(request.url);
 		const parts = requestUrl.pathname.split('/').filter(part => part);
-		// /v1/proxy/${backmeshUid}/${appName}/${proxyName}/
+		// /v1/proxy/${backmeshUid}/${apiProxyName}/
 		const backmeshUid =	parts.at(2);
-		const appName =	parts.at(3);
-		const proxyName =	parts.at(4);
-		if (!backmeshUid || !proxyName || !appName) {
+		const apiProxyName =	parts.at(3);
+		if (!backmeshUid || !apiProxyName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
-		const apiProxy = await kv.getApiProxy(env, backmeshUid, appName);
+		const apiProxy = await kv.getApiProxy(env, backmeshUid, apiProxyName);
 		const auth = await firebase.auth(request, apiProxy.authPublicKey);
 		if (auth instanceof Response) return auth;
 		const pathName = parts.slice(2).join('/');
@@ -23,7 +22,7 @@ export default {
 		const init = {
 			method: request.method,
 			headers: {
-				'Authorization': `Bearer ${apiProxy.privateApiKey}`,
+				'Authorization': `Bearer ${apiProxy.apiPrivateKey}`,
 				'Content-Type': 'application/json',
 			},
 			body: await request.clone().text(),

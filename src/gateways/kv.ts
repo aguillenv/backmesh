@@ -6,83 +6,89 @@ export enum ApiProxySchemaVersion {
   V1 = 'V1',
 }
 
+// TODO use URLs to validate here or in front
 export type ApiProxy = {
   authPublicKey: string;
   authType: AuthProviderType;
   apiUrl: string;
   apiPrivateKey: string;
   schemaVersion: ApiProxySchemaVersion;
+  proxyUrl: string;
 };
 
 // Type guard to check if an object is of type ApiProxy at runtime
-function checkApiProxy(obj: any): obj is ApiProxy {
+function assertApiProxy(obj: any): obj is ApiProxy {
   if (!obj.schemaVersion) {
     obj.schemaVersion = ApiProxySchemaVersion.V1;
   }
 
   if (typeof obj !== 'object' || obj === null) {
-    throw new Error('Object is not valid');
+    throw new TypeError('Object is not valid');
   }
   if (typeof obj.authPublicKey !== 'string') {
-    throw new Error('authPublicKey is not a string');
+    throw new TypeError('authPublicKey is not a string');
   }
   if (typeof obj.apiUrl !== 'string') {
-    throw new Error('apiUrl is not a string');
+    throw new TypeError('apiUrl is not a string');
   }
   if (typeof obj.apiPrivateKey !== 'string') {
-    throw new Error('apiPrivateKey is not a string');
+    throw new TypeError('apiPrivateKey is not a string');
   }
   if (!Object.values(AuthProviderType).includes(obj.authType)) {
-    throw new Error('authType is not valid');
+    throw new TypeError('authType is not valid');
   }
   if (!Object.values(ApiProxySchemaVersion).includes(obj.schemaVersion)) {
-    throw new Error('schemaVersion is not valid');
+    throw new TypeError('schemaVersion is not valid');
   }
 
-  // TODO where to add proxy URL
   return true;
 
 }
-async function set<T>(env: Env, key: string, value: T, { isNew }: { isNew: boolean }) {
+async function create<T>(env: Env, key: string, value: T) {
   const curr = await env.BACKMESH_KV.get(key);
-  if (curr === null && !isNew) {
-    throw new Error(`Update ${key}, but it does not exist`)
+  if (curr !== null) {
+    throw new TypeError(`New ${key}, but it already exists`)
   }
-  if (curr !== null && isNew) {
-    throw new Error(`New ${key}, but it already exists`)
-  }
+  const jsonValue = JSON.stringify(value);
+  await env.BACKMESH_KV.put(key, jsonValue);
+}
+
+async function edit<T>(env: Env, key: string, value: T) {
+  const curr = await env.BACKMESH_KV.get(key);
+  if (curr === null) throw new TypeError(`No value to edit for key: ${key}`);
   const jsonValue = JSON.stringify(value);
   await env.BACKMESH_KV.put(key, jsonValue);
 }
 
 async function get<T>(env: Env, key: string): Promise<T> {
   const value = await env.BACKMESH_KV.get(key);
-  if (value === null) throw new Error(`No value for key: ${key}`);
+  if (value === null) throw new TypeError(`No value for key: ${key}`);
   return JSON.parse(value) as T;
 };
 
 async function del(env: Env, key: string) {
   const curr = await env.BACKMESH_KV.get(key);
-  if (curr !== null) throw new Error(`Del ${key}, but it does not exist`)
+  if (curr === null) throw new TypeError(`No value to delete for key: ${key}`);
   await env.BACKMESH_KV.delete(key);
 }
 
 export default {
-  /* APP */
   async newApiProxy(env: Env, uid: string, name: string, value: any) {
-    checkApiProxy(value);
-    await set<ApiProxy>(env, `${uid}/${name}`, value, { isNew: true });
+    assertApiProxy(value);
+    const proxy = value as ApiProxy;
+    proxy.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${name}`
+    await create<ApiProxy>(env, `${uid}/${name}`, value);
   },
 
   async editApiProxy(env: Env, uid: string, name: string, value: any) {
-    checkApiProxy(value);
-    await set<ApiProxy>(env, `${uid}/${name}`, value, { isNew: false });
+    assertApiProxy(value);
+    await edit<ApiProxy>(env, `${uid}/${name}`, value);
   },
 
   async getApiProxy(env: Env, uid: string, name: string) {
     const key = `${uid}/${name}`;
     const proxy = await get<ApiProxy>(env, key);
-    checkApiProxy(proxy);
+    assertApiProxy(proxy);
     return proxy;
   },
 
@@ -91,7 +97,7 @@ export default {
 
     const proxyPromises = entries.keys.map(async (key) => {
       const proxy = await get<ApiProxy>(env, key.name);
-      checkApiProxy(proxy);
+      assertApiProxy(proxy);
       return proxy
     });
 
