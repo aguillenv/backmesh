@@ -23,7 +23,14 @@ function isApp(obj: any): obj is ApiProxy {
          Object.values(AuthProviderType).includes(obj.authProviderType) &&
          Object.values(ApiProxySchemaVersion).includes(obj.schemaVersion);
 }
-async function set<T>(env: Env, key: string, value: T) {
+async function set<T>(env: Env, key: string, value: T, isNew: boolean) {
+  const curr = await env.BACKMESH_KV.get(key);
+  if (curr === null && !isNew) {
+    throw new Error(`Update ${key}, but it does not exist`)
+  }
+  if (curr !== null && isNew) {
+    throw new Error(`New ${key}, but it already exists`)
+  }
   const jsonValue = JSON.stringify(value);
   await env.BACKMESH_KV.put(key, jsonValue);
 }
@@ -35,16 +42,25 @@ async function get<T>(env: Env, key: string): Promise<T> {
 };
 
 async function del(env: Env, key: string) {
+  const curr = await env.BACKMESH_KV.get(key);
+  if (curr !== null) throw new Error(`Del ${key}, but it does not exist`)
   await env.BACKMESH_KV.delete(key);
 }
 
 export default {
   /* APP */
-  async setApiProxy(env: Env, uid: string, name: string, value: any) {
+  async newApiProxy(env: Env, uid: string, name: string, value: any) {
     if (!isApp(value)) {
       throw new Error('Value does not match ApiProxy type');
     }
-    await set<ApiProxy>(env, `${uid}/${name}`, value);
+    await set<ApiProxy>(env, `${uid}/${name}`, value, false);
+  },
+
+  async editApiProxy(env: Env, uid: string, name: string, value: any) {
+    if (!isApp(value)) {
+      throw new Error('Value does not match ApiProxy type');
+    }
+    await set<ApiProxy>(env, `${uid}/${name}`, value, true);
   },
 
   async getApiProxy(env: Env, uid: string, name: string) {

@@ -4,15 +4,24 @@ import kv from './gateways/kv';
 async function crud(request: Request, env: Env, uid: string, name: string) {
 	switch (request.method) {
 		case 'POST':
-			// new
 			if (!request.body) {
 				return new Response('No body in request', { status: 500 });
 			}
-			const requestBody = await request.json();
 			try {
-				await kv.setApiProxy(env, uid, name, requestBody);
+				await kv.newApiProxy(env, uid, name, await request.json());
 			} catch (error: any) {
-				// Ensure error has a message property
+				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+				return new Response(errorMessage, { status: 400 });
+			}
+			return new Response('OK', { status: 200 });
+
+		case 'PUT':
+			if (!request.body) {
+				return new Response('No body in request', { status: 500 });
+			}
+			try {
+				await kv.editApiProxy(env, uid, name, await request.json());
+			} catch (error: any) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 				return new Response(errorMessage, { status: 400 });
 			}
