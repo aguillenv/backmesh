@@ -14,19 +14,16 @@ export default {
 		if (!backmeshUid || !proxyName || !appName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
-		const [app, proxy] = await Promise.all([
-			kv.getApp(env, backmeshUid, appName),
-			kv.getProxy(env, backmeshUid, appName, proxyName)
-		]);
-		const auth = await firebase.auth(request, app.authProviderPublicKey);
+		const apiProxy = await kv.getApiProxy(env, backmeshUid, appName);
+		const auth = await firebase.auth(request, apiProxy.authPublicKey);
 		if (auth instanceof Response) return auth;
 		const pathName = parts.slice(2).join('/');
-		const apiUrl = proxy.apiUrl + (proxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
+		const apiUrl = apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
 
 		const init = {
 			method: request.method,
 			headers: {
-				'Authorization': `Bearer ${proxy.privateApiKey}`,
+				'Authorization': `Bearer ${apiProxy.privateApiKey}`,
 				'Content-Type': 'application/json',
 			},
 			body: await request.clone().text(),

@@ -6,40 +6,23 @@ export enum AppSchemaVersion {
   V1 = 'V1',
 }
 
-export type App = {
-  authProviderPublicKey: string;
-  authProviderProjectId: string;
-  authProviderType: AuthProviderType;
+export type ApiProxy = {
+  authPublicKey: string;
+  authType: AuthProviderType;
+  apiUrl: string;
+  privateApiKey: string;
   schemaVersion: AppSchemaVersion;
 };
 
-// Type guard to check if an object is of type Proxy at runtime
-function isApp(obj: any): obj is App {
+// Type guard to check if an object is of type ApiProxy at runtime
+function isApp(obj: any): obj is ApiProxy {
   return typeof obj === 'object' && obj !== null &&
-         typeof obj.authProviderPublicKey === 'string' &&
-         typeof obj.authProviderProjectId === 'string' &&
+         typeof obj.authPublicKey === 'string' &&
+         typeof obj.apiUrl === 'string' &&
+         typeof obj.privateApiKey === 'string' &&
          Object.values(AuthProviderType).includes(obj.authProviderType) &&
          Object.values(AppSchemaVersion).includes(obj.schemaVersion);
 }
-
-export enum ProxySchemaVersion {
-  V1 = 'V1',
-}
-
-export type Proxy = {
-  apiUrl: string;
-  privateApiKey: string;
-  schemaVersion: ProxySchemaVersion;
-};
-
-// Type guard to check if an object is of type Proxy at runtime
-function isProxy(obj: any): obj is Proxy {
-  return typeof obj === 'object' && obj !== null &&
-         typeof obj.apiUrl === 'string' &&
-         typeof obj.privateApiKey === 'string' &&
-         Object.values(ProxySchemaVersion).includes(obj.schemaVersion);
-}
-
 async function set<T>(env: Env, key: string, value: T) {
   const jsonValue = JSON.stringify(value);
   await env.BACKMESH_KV.put(key, jsonValue);
@@ -57,46 +40,24 @@ async function del(env: Env, key: string) {
 
 export default {
   /* APP */
-  async setApp(env: Env, uid: string, appName: string, value: any) {
+  async setApiProxy(env: Env, uid: string, name: string, value: any) {
     if (!isApp(value)) {
-      throw new Error('Value does not match App type');
+      throw new Error('Value does not match ApiProxy type');
     }
-    await set<App>(env, `${uid}/${appName}`, value);
+    await set<ApiProxy>(env, `${uid}/${name}`, value);
   },
 
-  async getApp(env: Env, uid: string, appName: string) {
-    const key = `${uid}/${appName}`;
-    const app = await get<App>(env, key);
+  async getApiProxy(env: Env, uid: string, name: string) {
+    const key = `${uid}/${name}`;
+    const app = await get<ApiProxy>(env, key);
     if (!isApp(app)) {
-      throw new Error(`Retrieved value is not of App type:\n${app}`);
+      throw new Error(`Retrieved value is not of ApiProxy type:\n${app}`);
     }
     return app;
   },
 
-  async delApp(env: Env, uid: string, appName: string) {
-    const key = `${uid}/${appName}`;
-    await del(env, key);
-  },
-
-  /* PROXY */
-  async setProxy(env: Env, uid: string, appName: string, proxyName: string, value: any) {
-    if (!isProxy(value)) {
-      throw new Error('Value does not match Proxy type');
-    }
-    await set<Proxy>(env, `${uid}/${appName}/${proxyName}`, value);
-  },
-
-  async getProxy(env: Env, uid: string, appName: string, proxyName: string) {
-    const key = `${uid}/${appName}/${proxyName}`;
-    const proxy = await get<Proxy>(env, key);
-    if (!isProxy(proxy)) {
-      throw new Error(`Retrieved value is not of Proxy type:\n${proxy}`);
-    }
-    return proxy;
-  },
-
-  async delProxy(env: Env, uid: string, appName: string, proxyName: string) {
-    const key = `${uid}/${appName}/${proxyName}`;
+  async delApiProxy(env: Env, uid: string, name: string) {
+    const key = `${uid}/${name}`;
     await del(env, key);
   },
 };

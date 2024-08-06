@@ -1,16 +1,16 @@
 import firebase from './gateways/firebase';
 import kv from './gateways/kv';
 
-async function proxy(request: Request, env: Env, uid: string, appName: string, proxyName: string) {
+async function crud(request: Request, env: Env, uid: string, name: string) {
 	switch (request.method) {
 		case 'POST':
-			// new proxy
+			// new
 			if (!request.body) {
 				return new Response('No body in request', { status: 500 });
 			}
 			const requestBody = await request.json();
 			try {
-				await kv.setProxy(env, uid, appName, proxyName, requestBody);
+				await kv.setApiProxy(env, uid, name, requestBody);
 			} catch (error: any) {
 				// Ensure error has a message property
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -19,41 +19,11 @@ async function proxy(request: Request, env: Env, uid: string, appName: string, p
 			return new Response('OK', { status: 200 });
 
 		case 'GET':
-			const proxy = await kv.getProxy(env, uid, appName, proxyName);
+			const proxy = await kv.getApiProxy(env, uid, name);
 			return new Response(JSON.stringify(proxy), { status: 200 });
 
 		case 'DELETE':
-			await kv.delProxy(env, uid, appName, proxyName);
-			return new Response('OK', { status: 200 });
-
-		default:
-			return new Response('Not Found', { status: 404 });
-	}
-};
-
-async function app(request: Request, env: Env, uid: string, appName: string) {
-	switch (request.method) {
-		case 'POST':
-			// new app
-			if (!request.body) {
-				return new Response('No body in request', { status: 500 });
-			}
-			const requestBody = await request.json();
-			try {
-				await kv.setApp(env, uid, appName, requestBody);
-			} catch (error: any) {
-				// Ensure error has a message property
-				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-				return new Response(errorMessage, { status: 400 });
-			}
-			return new Response('OK', { status: 200 });
-
-		case 'GET':
-			const proxy = await kv.getApp(env, uid, appName);
-			return new Response(JSON.stringify(proxy), { status: 200 });
-
-		case 'DELETE':
-			await kv.delApp(env, uid, appName);
+			await kv.delApiProxy(env, uid, name);
 			return new Response('OK', { status: 200 });
 
 		default:
@@ -69,20 +39,15 @@ export default {
 		const requestUrl = new URL(request.url);
 		const parts = requestUrl.pathname.split('/').filter(part => part);
 
-		// /v1/api/${backmeshUid}/${appName}/${proxyName}
+		// /v1/crud/${backmeshUid}/${name}
 		const backmeshUid =	parts.at(2);
 		if (tokenUid != backmeshUid) {
 			new Response('Invalid token', { status: 401 });
 		}
-		const appName =	parts.at(3);
-		if (!appName) {
+		const name =	parts.at(3);
+		if (!name) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
-		const proxyName =	parts.at(4);
-		if (!proxyName) {
-			return app(request, env, tokenUid, appName);
-		} else {
-			return proxy(request, env, tokenUid, appName, proxyName);
-		}
+		return crud(request, env, tokenUid, name);
 	},
 };
