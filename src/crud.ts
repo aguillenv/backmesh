@@ -69,16 +69,16 @@ export default {
 		const requestUrl = new URL(request.url);
 		const parts = requestUrl.pathname.split('/').filter(part => part);
 
-		// /api/${backmeshUid}/${appName}/${proxyName}
-		const backmeshUid =	parts.at(1);
+		// /v1/api/${backmeshUid}/${appName}/${proxyName}
+		const backmeshUid =	parts.at(2);
 		if (tokenUid != backmeshUid) {
 			new Response('Invalid token', { status: 401 });
 		}
-		const appName =	parts.at(2);
+		const appName =	parts.at(3);
 		if (!appName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
-		const proxyName =	parts.at(3);
+		const proxyName =	parts.at(4);
 		if (!proxyName) {
 			return app(request, env, tokenUid, appName);
 		} else {

@@ -7,10 +7,10 @@ export default {
 
 		const requestUrl = new URL(request.url);
 		const parts = requestUrl.pathname.split('/').filter(part => part);
-		// /proxy/${backmeshUid}/${appName}/${proxyName}/
-		const backmeshUid =	parts.at(1);
-		const appName =	parts.at(2);
-		const proxyName =	parts.at(3);
+		// /v1/proxy/${backmeshUid}/${appName}/${proxyName}/
+		const backmeshUid =	parts.at(2);
+		const appName =	parts.at(3);
+		const proxyName =	parts.at(4);
 		if (!backmeshUid || !proxyName || !appName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
