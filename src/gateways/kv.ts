@@ -28,6 +28,9 @@ function assertApiProxy(obj: any): obj is ApiProxy {
   if (typeof obj.authPublicKey !== 'string') {
     throw new TypeError('authPublicKey is not a string');
   }
+  if (typeof obj.proxyUrl !== 'string') {
+    throw new TypeError('proxyUrl is not a string');
+  }
   if (typeof obj.apiUrl !== 'string') {
     throw new TypeError('apiUrl is not a string');
   }
@@ -74,9 +77,8 @@ async function del(env: Env, key: string) {
 
 export default {
   async newApiProxy(env: Env, uid: string, name: string, value: any) {
+    value.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${name}`
     assertApiProxy(value);
-    const proxy = value as ApiProxy;
-    proxy.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${name}`
     await create<ApiProxy>(env, `${uid}/${name}`, value);
   },
 
