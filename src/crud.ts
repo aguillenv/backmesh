@@ -46,9 +46,9 @@ export default {
 
 			case 'GET':
 				const prox = name === undefined ?
-					kv.getAllApiProxies(env, uid) :
-					kv.getApiProxy(env, uid, name!);
-				return new Response(JSON.stringify(await prox), { status: 200 });
+					await kv.getAllApiProxies(env, uid) :
+					await kv.getApiProxy(env, uid, name!);
+				return new Response(JSON.stringify(prox), { status: 200 });
 
 			case 'DELETE':
 				await kv.delApiProxy(env, uid, name!);

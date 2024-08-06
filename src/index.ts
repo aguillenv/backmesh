@@ -5,7 +5,7 @@ import proxy from './proxy';
 // https://stackoverflow.com/questions/66486610/how-to-set-cors-in-cloudflare-workers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,HEAD,POST,PUT,DELETE,OPTIONS",
   "Access-Control-Max-Age": "86400",
 }
 function handleOptions (request: Request) {
@@ -35,7 +35,7 @@ function handleOptions (request: Request) {
     // If you want to allow other HTTP Methods, you can do that here.
     return new Response(null, {
       headers: {
-        Allow: "GET, HEAD, POST, OPTIONS",
+        Allow: "GET, HEAD, POST, PUT, DELETE, OPTIONS",
       },
     })
   }
@@ -48,11 +48,15 @@ export default {
     }
     const url = new URL(request.url);
     const path = url.pathname;
+    let resp;
     if (path.startsWith('/v1/crud')) {
-      return crud.fetch(request, env, ctx);
+      resp = await crud.fetch(request, env, ctx);
     } else if (path.startsWith('/v1/proxy')) {
-      return proxy.fetch(request, env, ctx);
+      resp = await proxy.fetch(request, env, ctx);
     }
-    return new Response('Not Found', { status: 404 });
+    if (resp === undefined) return new Response('Not Found', { status: 404 });
+    resp.headers.set("Access-Control-Allow-Origin", "*")
+    resp.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+    return resp;
   },
 };
