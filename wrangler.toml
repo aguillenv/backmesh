@@ -26,7 +26,7 @@ mode = "smart"
 # Note: Use secrets to store sensitive data.
 # - https://developers.cloudflare.com/workers/configuration/secrets/
 [vars]
-BACKMESH_FIREBASE_KEY="AIzaSyBWgyupvEWj7S4viMK_1NCfYf5VUXCplgU"
+BACKMESH_FIREBASE_KEY="AIzaSyBHz11i2YIYtMkKdLpj3QiiKD8UguTKyRo"
 
 # Bind the Workers AI model catalog. Run machine learning models, powered by serverless GPUs, on Cloudflare’s global network
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#workers-ai
