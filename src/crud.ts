@@ -40,7 +40,7 @@ export default {
 				if (!request.body) {
 					return new Response('No body in request', { status: 500 });
 				}
-				return handleRequest(async () => kv.newApiProxy(env, uid, name!, await request.json()));
+				return handleRequest(async () => kv.editApiProxy(env, uid, name!, await request.json()));
 
 			case 'GET':
 				return handleRequest(async () => name === undefined ?
