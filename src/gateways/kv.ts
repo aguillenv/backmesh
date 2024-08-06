@@ -10,20 +10,40 @@ export type ApiProxy = {
   authPublicKey: string;
   authType: AuthProviderType;
   apiUrl: string;
-  privateApiKey: string;
+  apiPrivateKey: string;
   schemaVersion: ApiProxySchemaVersion;
 };
 
 // Type guard to check if an object is of type ApiProxy at runtime
-function isApp(obj: any): obj is ApiProxy {
-  return typeof obj === 'object' && obj !== null &&
-         typeof obj.authPublicKey === 'string' &&
-         typeof obj.apiUrl === 'string' &&
-         typeof obj.privateApiKey === 'string' &&
-         Object.values(AuthProviderType).includes(obj.authProviderType) &&
-         Object.values(ApiProxySchemaVersion).includes(obj.schemaVersion);
+function checkApiProxy(obj: any): obj is ApiProxy {
+  if (!obj.schemaVersion) {
+    obj.schemaVersion = ApiProxySchemaVersion.V1;
+  }
+
+  if (typeof obj !== 'object' || obj === null) {
+    throw new Error('Object is not valid');
+  }
+  if (typeof obj.authPublicKey !== 'string') {
+    throw new Error('authPublicKey is not a string');
+  }
+  if (typeof obj.apiUrl !== 'string') {
+    throw new Error('apiUrl is not a string');
+  }
+  if (typeof obj.apiPrivateKey !== 'string') {
+    throw new Error('apiPrivateKey is not a string');
+  }
+  if (!Object.values(AuthProviderType).includes(obj.authType)) {
+    throw new Error('authType is not valid');
+  }
+  if (!Object.values(ApiProxySchemaVersion).includes(obj.schemaVersion)) {
+    throw new Error('schemaVersion is not valid');
+  }
+
+  // TODO where to add proxy URL
+  return true;
+
 }
-async function set<T>(env: Env, key: string, value: T, isNew: boolean) {
+async function set<T>(env: Env, key: string, value: T, { isNew }: { isNew: boolean }) {
   const curr = await env.BACKMESH_KV.get(key);
   if (curr === null && !isNew) {
     throw new Error(`Update ${key}, but it does not exist`)
@@ -50,38 +70,29 @@ async function del(env: Env, key: string) {
 export default {
   /* APP */
   async newApiProxy(env: Env, uid: string, name: string, value: any) {
-    if (!isApp(value)) {
-      throw new Error('Value does not match ApiProxy type');
-    }
-    await set<ApiProxy>(env, `${uid}/${name}`, value, false);
+    checkApiProxy(value);
+    await set<ApiProxy>(env, `${uid}/${name}`, value, { isNew: true });
   },
 
   async editApiProxy(env: Env, uid: string, name: string, value: any) {
-    if (!isApp(value)) {
-      throw new Error('Value does not match ApiProxy type');
-    }
-    await set<ApiProxy>(env, `${uid}/${name}`, value, true);
+    checkApiProxy(value);
+    await set<ApiProxy>(env, `${uid}/${name}`, value, { isNew: false });
   },
 
   async getApiProxy(env: Env, uid: string, name: string) {
     const key = `${uid}/${name}`;
-    const app = await get<ApiProxy>(env, key);
-    if (!isApp(app)) {
-      throw new Error(`Retrieved value is not of ApiProxy type:\n${app}`);
-    }
-    return app;
+    const proxy = await get<ApiProxy>(env, key);
+    checkApiProxy(proxy);
+    return proxy;
   },
 
   async getAllApiProxies(env: Env, uid: string): Promise<ApiProxy[]> {
     const entries = await env.BACKMESH_KV.list({ prefix: `${uid}/` });
 
     const proxyPromises = entries.keys.map(async (key) => {
-      const app = await get<ApiProxy>(env, key.name);
-      if (isApp(app)) {
-        return app;
-      } else {
-        throw new Error(`Retrieved value is not of ApiProxy type for key: ${key.name}`);
-      }
+      const proxy = await get<ApiProxy>(env, key.name);
+      checkApiProxy(proxy);
+      return proxy
     });
 
     return Promise.all(proxyPromises);

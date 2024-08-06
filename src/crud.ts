@@ -28,6 +28,7 @@ export default {
 					await kv.newApiProxy(env, uid, name!, await request.json());
 				} catch (error: any) {
 					const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+					console.error(errorMessage);
 					return new Response(errorMessage, { status: 400 });
 				}
 				return new Response('OK', { status: 200 });
