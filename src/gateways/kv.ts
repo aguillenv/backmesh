@@ -1,8 +1,8 @@
 export enum AuthProviderType {
-  FIREBASE = 'firebase',
+  FIREBASE = 'Firebase',
 }
 
-export enum AppSchemaVersion {
+export enum ApiProxySchemaVersion {
   V1 = 'V1',
 }
 
@@ -11,7 +11,7 @@ export type ApiProxy = {
   authType: AuthProviderType;
   apiUrl: string;
   privateApiKey: string;
-  schemaVersion: AppSchemaVersion;
+  schemaVersion: ApiProxySchemaVersion;
 };
 
 // Type guard to check if an object is of type ApiProxy at runtime
@@ -21,7 +21,7 @@ function isApp(obj: any): obj is ApiProxy {
          typeof obj.apiUrl === 'string' &&
          typeof obj.privateApiKey === 'string' &&
          Object.values(AuthProviderType).includes(obj.authProviderType) &&
-         Object.values(AppSchemaVersion).includes(obj.schemaVersion);
+         Object.values(ApiProxySchemaVersion).includes(obj.schemaVersion);
 }
 async function set<T>(env: Env, key: string, value: T) {
   const jsonValue = JSON.stringify(value);
