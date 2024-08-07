@@ -112,6 +112,7 @@ export default {
     const key = `${uid}/${id}`;
     const proxy = await get<ApiProxy>(env, key);
     assertApiProxy(proxy);
+    proxy.apiPrivateKey = '';
     return proxy;
   },
 
@@ -121,6 +122,7 @@ export default {
     const proxyPromises = entries.keys.map(async (key) => {
       const proxy = await get<ApiProxy>(env, key.name);
       assertApiProxy(proxy);
+      proxy.apiPrivateKey = '';
       return proxy
     });
 
