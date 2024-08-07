@@ -9,7 +9,7 @@
 // between security and performance seems unavoidable in the free tier
 // https://developers.cloudflare.com/api/operations/namespace-worker-put-script-secrets
 // or a hacky server / GH action that invokes the wrangler CLI and passes data via stdin/out
-const ITERATIONS = 100001;
+const ITERATIONS = 100000;
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
