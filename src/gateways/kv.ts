@@ -8,6 +8,7 @@ export enum ApiProxySchemaVersion {
 
 // TODO use URLs to validate here or in front
 export type ApiProxy = {
+  id: string;
   authPublicKey: string;
   authType: AuthProviderType;
   apiUrl: string;
@@ -27,6 +28,9 @@ function assertApiProxy(obj: any): obj is ApiProxy {
   }
   if (typeof obj.authPublicKey !== 'string') {
     throw new TypeError('authPublicKey is not a string');
+  }
+  if (typeof obj.id !== 'string') {
+    throw new TypeError('id is not a string');
   }
   if (typeof obj.proxyUrl !== 'string') {
     throw new TypeError('proxyUrl is not a string');
@@ -56,9 +60,15 @@ async function create<T>(env: Env, key: string, value: T) {
   await env.BACKMESH_KV.put(key, jsonValue);
 }
 
-async function edit<T>(env: Env, key: string, value: T) {
+async function edit<T>(env: Env, key: string, value: T, immutableFields: Array<string>) {
   const curr = await env.BACKMESH_KV.get(key);
   if (curr === null) throw new TypeError(`No value to edit for key: ${key}`);
+  const currVal = JSON.parse(curr);
+  for (const field of immutableFields) {
+    if (currVal[field] !== (value as any)[field]) {
+      throw new TypeError(`Field '${field}' is immutable and cannot be changed`);
+    }
+  }
   const jsonValue = JSON.stringify(value);
   await env.BACKMESH_KV.put(key, jsonValue);
 }
@@ -75,20 +85,31 @@ async function del(env: Env, key: string) {
   await env.BACKMESH_KV.delete(key);
 }
 
+function generateId(length: number = 20): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 export default {
-  async newApiProxy(env: Env, uid: string, name: string, value: any) {
-    value.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${name}`
+  async newApiProxy(env: Env, uid: string, value: any) {
+    const id = generateId();
+    value.id = id;
+    value.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${id}`
     assertApiProxy(value);
-    await create<ApiProxy>(env, `${uid}/${name}`, value);
+    await create<ApiProxy>(env, `${uid}/${id}`, value);
   },
 
-  async editApiProxy(env: Env, uid: string, name: string, value: any) {
+  async editApiProxy(env: Env, uid: string, id: string, value: any) {
     assertApiProxy(value);
-    await edit<ApiProxy>(env, `${uid}/${name}`, value);
+    await edit<ApiProxy>(env, `${uid}/${id}`, value, ['id', 'proxyUrl']);
   },
 
-  async getApiProxy(env: Env, uid: string, name: string) {
-    const key = `${uid}/${name}`;
+  async getApiProxy(env: Env, uid: string, id: string) {
+    const key = `${uid}/${id}`;
     const proxy = await get<ApiProxy>(env, key);
     assertApiProxy(proxy);
     return proxy;
