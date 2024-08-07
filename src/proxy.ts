@@ -2,14 +2,12 @@ import firebase from './gateways/firebase';
 import kv from './gateways/kv';
 
 export default {
-
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-
 		const requestUrl = new URL(request.url);
-		const parts = requestUrl.pathname.split('/').filter(part => part);
+		const parts = requestUrl.pathname.split('/').filter((part) => part);
 		// /v1/proxy/${backmeshUid}/${apiProxyName}/
-		const backmeshUid =	parts.at(2);
-		const apiProxyName =	parts.at(3);
+		const backmeshUid = parts.at(2);
+		const apiProxyName = parts.at(3);
 		if (!backmeshUid || !apiProxyName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
@@ -17,12 +15,13 @@ export default {
 		const auth = await firebase.auth(request, apiProxy.authPublicKey);
 		if (auth instanceof Response) return auth;
 		const pathName = parts.slice(2).join('/');
-		const apiUrl = apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
+		const apiUrl =
+			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
 
 		const init = {
 			method: request.method,
 			headers: {
-				'Authorization': `Bearer ${apiProxy.apiPrivateKey}`,
+				Authorization: `Bearer ${apiProxy.apiPrivateKey}`,
 				'Content-Type': 'application/json',
 			},
 			body: await request.clone().text(),
@@ -37,7 +36,7 @@ export default {
 		let { readable, writable } = new TransformStream({
 			transform(chunk, controller) {
 				controller.enqueue(chunk);
-			}
+			},
 		});
 
 		// Start pumping the body. NOTE: No await!
@@ -45,5 +44,5 @@ export default {
 
 		// ... and deliver our Response while that’s running.
 		return new Response(readable, response);
-	}
+	},
 };
