@@ -1,3 +1,5 @@
+import { decrypt, encrypt } from './crypto';
+
 export enum AuthProviderType {
 	FIREBASE = 'Firebase',
 }
@@ -101,12 +103,17 @@ export default {
 		const id = generateId();
 		value.id = id;
 		value.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${id}`;
+		value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		assertApiProxy(value);
 		await create<ApiProxy>(env, `${uid}/${id}`, value);
 	},
 
 	async editApiProxy(env: Env, uid: string, id: string, value: any) {
 		assertApiProxy(value);
+		// user is trying to set a new one
+		if (value.apiPrivateKey.length > 0) {
+			value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
+		}
 		await edit<ApiProxy>(env, `${uid}/${id}`, value, ['id', 'proxyUrl']);
 	},
 
@@ -115,6 +122,14 @@ export default {
 		const proxy = await get<ApiProxy>(env, key);
 		assertApiProxy(proxy);
 		proxy.apiPrivateKey = '';
+		return proxy;
+	},
+
+	async getAdminApiProxy(env: Env, uid: string, id: string) {
+		const key = `${uid}/${id}`;
+		const proxy = await get<ApiProxy>(env, key);
+		proxy.apiPrivateKey = await decrypt(proxy.apiPrivateKey, env.PASSWORD);
+		assertApiProxy(proxy);
 		return proxy;
 	},
 

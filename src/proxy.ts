@@ -11,7 +11,7 @@ export default {
 		if (!backmeshUid || !apiProxyName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
-		const apiProxy = await kv.getApiProxy(env, backmeshUid, apiProxyName);
+		const apiProxy = await kv.getAdminApiProxy(env, backmeshUid, apiProxyName);
 		const auth = await firebase.auth(request, apiProxy.authPublicKey);
 		if (auth instanceof Response) return auth;
 		const pathName = parts.slice(2).join('/');
