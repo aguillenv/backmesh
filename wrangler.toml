@@ -1,7 +1,7 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "edge"
 main = "src/index.ts"
-compatibility_date = "2024-08-01"
+compatibility_date = "2024-07-25"
 
 routes = [
 	{ pattern = "edge.backmesh.com", custom_domain = true }
