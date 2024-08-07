@@ -86,12 +86,10 @@ async function del(env: Env, key: string) {
 }
 
 function generateId(length: number = 20): string {
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+  return Array.from(array, byte => chars[byte % chars.length]).join('');
 }
 
 export default {
