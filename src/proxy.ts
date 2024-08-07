@@ -1,5 +1,5 @@
-import firebase from './gateways/firebase';
-import kv from './gateways/kv';
+import firebase from './services/firebase';
+import kv from './services/kv';
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {

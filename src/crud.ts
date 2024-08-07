@@ -1,5 +1,5 @@
-import firebase from './gateways/firebase';
-import kv from './gateways/kv';
+import firebase from './services/firebase';
+import kv from './services/kv';
 
 async function handleRequest(callback: () => Promise<any>): Promise<Response> {
 	try {
