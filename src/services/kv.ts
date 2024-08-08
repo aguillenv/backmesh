@@ -99,22 +99,29 @@ function generateId(length: number = 20): string {
 }
 
 export default {
-	async newApiProxy(env: Env, uid: string, value: any) {
+	async newApiProxy(env: Env, uid: string, value: any): Promise<ApiProxy> {
 		const id = generateId();
 		value.id = id;
 		value.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${id}`;
 		value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		assertApiProxy(value);
 		await create<ApiProxy>(env, `${uid}/${id}`, value);
+		return value;
 	},
 
-	async editApiProxy(env: Env, uid: string, id: string, value: any) {
+	async editApiProxy(
+		env: Env,
+		uid: string,
+		id: string,
+		value: any,
+	): Promise<ApiProxy> {
 		assertApiProxy(value);
 		// user is trying to set a new one
 		if (value.apiPrivateKey.length > 0) {
 			value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		}
 		await edit<ApiProxy>(env, `${uid}/${id}`, value, ['id', 'proxyUrl']);
+		return value;
 	},
 
 	async getApiProxy(env: Env, uid: string, id: string) {
