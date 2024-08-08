@@ -102,7 +102,7 @@ export default {
 	async newApiProxy(env: Env, uid: string, value: any): Promise<ApiProxy> {
 		const id = generateId();
 		value.id = id;
-		value.proxyUrl = `https://edge.backmesh.com/proxy/v1/${uid}/${id}`;
+		value.proxyUrl = `https://edge.backmesh.com/v1/proxy/${uid}/${id}`;
 		value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		assertApiProxy(value);
 		await create<ApiProxy>(env, `${uid}/${id}`, value);
