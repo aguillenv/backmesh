@@ -14,7 +14,7 @@ export default {
 		const apiProxy = await kv.getAdminApiProxy(env, backmeshUid, apiProxyName);
 		const auth = await firebase.auth(request, apiProxy.authPublicKey);
 		if (auth instanceof Response) return auth;
-		const pathName = parts.slice(2).join('/');
+		const pathName = parts.slice(4).join('/');
 		const apiUrl =
 			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
 
