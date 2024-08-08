@@ -28,17 +28,23 @@ npm run dev
 
 - `POST` for creations, fail if it already exists
 - `PUT` for updates, fails if it does not already exist
-- `DELETE` and `GET`
+- `DELETE`
+- `GET`
 
 ## Data Model
 
 Cloudflare KV is the main data store. Version schemas to avoid insidious bugs down the line. Resources have unique alphanumeric names set by us
 
-api proxy is with key `backmeshUid/id` and value:
+App has key `${uid}/app/${id}` and value:
 
 - `authPublicKey`
 - `authAppId`
 - `authType` - `supabase`, `firebase`
+
+ApiProxy has key `${uid}/apiProxy/${id}` and value:
+
 - `apiUrl`
 - `privateApiKey` (encrypted by us)
 - `proxyUrl` (set by us)
+- `appKvId`
+- `accessRules`

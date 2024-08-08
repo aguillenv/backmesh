@@ -106,6 +106,8 @@ export default {
 		value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		assertApiProxy(value);
 		await create<ApiProxy>(env, `${uid}/${id}`, value);
+		// do not return private key
+		value.apiPrivateKey = '';
 		return value;
 	},
 
@@ -121,6 +123,8 @@ export default {
 			value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		}
 		await edit<ApiProxy>(env, `${uid}/${id}`, value, ['id', 'proxyUrl']);
+		// do not return private key
+		value.apiPrivateKey = '';
 		return value;
 	},
 
