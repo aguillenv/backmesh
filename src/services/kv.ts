@@ -17,6 +17,7 @@ export type ApiProxy = {
 	apiPrivateKey: string;
 	schemaVersion: ApiProxySchemaVersion;
 	proxyUrl: string;
+	apiReqHeader: string;
 };
 
 // Type guard to check if an object is of type ApiProxy at runtime
@@ -30,6 +31,9 @@ function assertApiProxy(obj: any): obj is ApiProxy {
 	}
 	if (typeof obj.authPublicKey !== 'string') {
 		throw new TypeError('authPublicKey is not a string');
+	}
+	if (typeof obj.apiReqHeader !== 'string') {
+		throw new TypeError('apiReqHeader is not a string');
 	}
 	if (typeof obj.id !== 'string') {
 		throw new TypeError('id is not a string');

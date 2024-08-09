@@ -1,4 +1,4 @@
-import firebase from './services/firebase';
+import auth from './services/firebase';
 import kv from './services/kv';
 
 async function handleRequest(callback: () => Promise<any>): Promise<Response> {
@@ -8,6 +8,7 @@ async function handleRequest(callback: () => Promise<any>): Promise<Response> {
 			status: 200,
 		});
 	} catch (error: any) {
+		console.error(error);
 		const status = error instanceof TypeError ? 400 : 500;
 		return new Response(error.message ?? 'Unknown error', { status });
 	}
@@ -15,9 +16,16 @@ async function handleRequest(callback: () => Promise<any>): Promise<Response> {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-		const auth = await firebase.auth(request, env.BACKMESH_FIREBASE_KEY);
-		if (auth instanceof Response) return auth;
-		const uid = auth;
+		const authHeader = auth.getAuthHeader(request, 'Authorization');
+		if (authHeader === null)
+			return new Response('Missing or invalid Authorization header', {
+				status: 401,
+			});
+		const uid = await auth.firebaseUidFromJwt(
+			authHeader.extractedJwt,
+			env.BACKMESH_FIREBASE_KEY,
+		);
+		if (uid === null) return new Response('Invalid token', { status: 401 });
 		const requestUrl = new URL(request.url);
 		const parts = requestUrl.pathname.split('/').filter((part) => part);
 

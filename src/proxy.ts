@@ -1,4 +1,4 @@
-import firebase from './services/firebase';
+import auth from './services/firebase';
 import kv from './services/kv';
 
 export default {
@@ -12,18 +12,23 @@ export default {
 			return new Response('Invalid pathname', { status: 500 });
 		}
 		const apiProxy = await kv.getAdminApiProxy(env, backmeshUid, apiProxyName);
-		const auth = await firebase.auth(request, apiProxy.authPublicKey);
-		if (auth instanceof Response) return auth;
+		const authHeader = auth.getAuthHeader(request, apiProxy.apiReqHeader);
+		if (authHeader === null)
+			return new Response('Missing or invalid Authorization header', {
+				status: 401,
+			});
+		const uid = await auth.firebaseUidFromJwt(
+			authHeader.extractedJwt,
+			apiProxy.authPublicKey,
+		);
+		if (uid === null) return new Response('Invalid token', { status: 401 });
 		const pathName = parts.slice(4).join('/');
 		const apiUrl =
 			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
 
 		const init = {
 			method: request.method,
-			headers: {
-				Authorization: `Bearer ${apiProxy.apiPrivateKey}`,
-				'Content-Type': 'application/json',
-			},
+			headers: auth.newProxyHeaders(request, authHeader, apiProxy.apiPrivateKey),
 			body: await request.clone().text(),
 		};
 

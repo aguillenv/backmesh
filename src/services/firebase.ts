@@ -1,17 +1,14 @@
-export default {
-	async auth(
-		request: Request,
-		publicFirebaseKey: string,
-	): Promise<string | Response> {
-		// Extract the ID token from the Authorization header
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || !authHeader.startsWith('Bearer ')) {
-			return new Response('Missing or invalid Authorization header', {
-				status: 401,
-			});
-		}
+export type AuthHeader = {
+	field: string;
+	value: string;
+	extractedJwt: string;
+};
 
-		const idToken = authHeader.split(' ')[1];
+export default {
+	async firebaseUidFromJwt(
+		token: string,
+		publicFirebaseKey: string,
+	): Promise<string | null> {
 		const response = await fetch(
 			`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${publicFirebaseKey}`,
 			{
@@ -20,16 +17,14 @@ export default {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					idToken,
+					idToken: token,
 				}),
 			},
 		);
 
-		const invalidTokResp = new Response('Invalid token', { status: 401 });
-
 		if (!response.ok) {
 			console.error('Error verifying ID token:', response.statusText);
-			return invalidTokResp;
+			return null;
 		}
 
 		// TODO import firebase types?
@@ -39,6 +34,26 @@ export default {
 		const data: FirebaseResponse = await response.json();
 		return data && data.users && data.users.length > 0
 			? data.users[0].localId
-			: invalidTokResp;
+			: null;
+	},
+
+	getAuthHeader(request: Request, apiReqHeader: string): AuthHeader | null {
+		const val = request.headers.get(apiReqHeader);
+		if (!val) return null;
+		const parts = val.split(' ');
+		if (parts.length > 2) return null; // wtf
+		return {
+			field: apiReqHeader,
+			value: val,
+			extractedJwt: parts.length === 2 ? parts[1] : parts[0],
+		};
+	},
+
+	newProxyHeaders(request: Request, header: AuthHeader, apiKey: string) {
+		return {
+			[header.field]: header.value.replace(header.extractedJwt, apiKey),
+			...request.headers,
+			'Content-Type': 'application/json',
+		};
 	},
 };
