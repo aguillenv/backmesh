@@ -1,4 +1,4 @@
-import auth from './services/firebase';
+import auth from './services/auth';
 import kv from './services/kv';
 
 async function handleRequest(callback: () => Promise<any>): Promise<Response> {
