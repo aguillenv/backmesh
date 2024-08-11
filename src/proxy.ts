@@ -23,8 +23,14 @@ export default {
 		);
 		if (uid === null) return new Response('Invalid token', { status: 401 });
 		const pathName = parts.slice(4).join('/');
-		const apiUrl =
+		let apiUrl =
 			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
+		// Add existing query parameters
+		if (requestUrl.searchParams.size > 0) {
+			const url = new URL(apiUrl);
+			url.search = requestUrl.search;
+			apiUrl = url.toString();
+		}
 
 		const init = {
 			method: request.method,
@@ -38,11 +44,7 @@ export default {
 			return new Response('No body in response', { status: 500 });
 		}
 
-		let { readable, writable } = new TransformStream({
-			transform(chunk, controller) {
-				controller.enqueue(chunk);
-			},
-		});
+		const { readable, writable } = new TransformStream();
 
 		// Start pumping the body. NOTE: No await!
 		response.body.pipeTo(writable);
