@@ -8,6 +8,28 @@ export enum ApiProxySchemaVersion {
 	V1 = 'V1',
 }
 
+export enum RateLimitUnit {
+	MINUTE = 'minute',
+	HOUR = 'hour',
+	DAY = 'day',
+	MONTH = 'month',
+}
+
+function getRateLimitUnitInSecs(unit: RateLimitUnit): number {
+	switch (unit) {
+		case RateLimitUnit.MINUTE:
+			return 60;
+		case RateLimitUnit.HOUR:
+			return 3600;
+		case RateLimitUnit.DAY:
+			return 86400;
+		case RateLimitUnit.MONTH:
+			return 2592000; // Assuming 30 days in a month
+		default:
+			throw new Error('Invalid RateLimitUnit');
+	}
+}
+
 // TODO use URLs to validate here or in front
 export type ApiProxy = {
 	id: string;
@@ -18,6 +40,8 @@ export type ApiProxy = {
 	schemaVersion: ApiProxySchemaVersion;
 	proxyUrl: string;
 	apiReqHeader: string;
+	rateLimitUnit: RateLimitUnit;
+	rateLimit: number;
 };
 
 // Type guard to check if an object is of type ApiProxy at runtime
@@ -53,9 +77,15 @@ function assertApiProxy(obj: any): obj is ApiProxy {
 	if (!Object.values(ApiProxySchemaVersion).includes(obj.schemaVersion)) {
 		throw new TypeError('schemaVersion is not valid');
 	}
-
+	if (!Object.values(RateLimitUnit).includes(obj.rateLimitUnit)) {
+		throw new TypeError('rateLimitUnit is not valid');
+	}
+	if (typeof obj.rateLimit !== 'number' || obj.rateLimit < 0) {
+		throw new TypeError('rateLimit is not valid');
+	}
 	return true;
 }
+
 async function create<T>(env: Env, key: string, value: T) {
 	const curr = await env.BACKMESH_KV.get(key);
 	if (curr !== null) {
@@ -164,5 +194,32 @@ export default {
 	async delApiProxy(env: Env, uid: string, name: string) {
 		const key = `${uid}/${name}`;
 		await del(env, key);
+	},
+
+	// sliding window rate limiting
+	async rateLimit(env: Env, apiProxy: ApiProxy): Promise<boolean> {
+		const now = Math.floor(Date.now() / 1000);
+		const rateLimitWindow = getRateLimitUnitInSecs(apiProxy.rateLimitUnit);
+		const windowStart = Math.floor(now / rateLimitWindow) * rateLimitWindow;
+
+		// Get the current count from KV, if any
+		const rateLimitKey = `rateLimit/${apiProxy.id}/${windowStart}`;
+		const requestCount = await env.BACKMESH_KV.get(rateLimitKey);
+		let count = requestCount ? parseInt(requestCount, 10) : 0;
+
+		if (count >= apiProxy.rateLimit) {
+			// Exceeded the rate limit
+			return true;
+		}
+
+		// Increment the request count
+		count += 1;
+
+		// Store the updated count back to KV with an expiration time (equal to the window duration)
+		await env.BACKMESH_KV.put(rateLimitKey, count.toString(), {
+			expirationTtl: rateLimitWindow,
+		});
+
+		return false;
 	},
 };

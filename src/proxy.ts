@@ -22,6 +22,9 @@ export default {
 			apiProxy.authPublicKey,
 		);
 		if (uid === null) return new Response('Invalid token', { status: 401 });
+		const rateLimit = await kv.rateLimit(env, apiProxy);
+		if (rateLimit)
+			return new Response('Backmesh request limit exceeded', { status: 429 });
 		const pathName = parts.slice(4).join('/');
 		let apiUrl =
 			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
