@@ -104,9 +104,17 @@ async function edit<T>(
 	const curr = await env.BACKMESH_KV.get(key);
 	if (curr === null) throw new TypeError(`No value to edit for key: ${key}`);
 	const currVal = JSON.parse(curr);
+	const newValue = value as any;
 	for (const field of immutableFields) {
-		if (currVal[field] !== (value as any)[field]) {
+		if (currVal[field] !== newValue[field]) {
 			throw new TypeError(`Field '${field}' is immutable and cannot be changed`);
+		}
+	}
+	// Use current value if the new value is empty
+	// needed to preserve private api key on updates
+	for (const field in currVal) {
+		if (newValue[field] === undefined || newValue[field] === '') {
+			newValue[field] = currVal[field];
 		}
 	}
 	const jsonValue = JSON.stringify(value);
