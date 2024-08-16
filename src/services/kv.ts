@@ -209,14 +209,14 @@ export default {
 		await del(env, key);
 	},
 
-	// sliding window rate limiting
-	async rateLimit(env: Env, apiProxy: ApiProxy): Promise<boolean> {
+	// sliding window rate limiting per user
+	async rateLimit(env: Env, apiProxy: ApiProxy, uid: string): Promise<boolean> {
 		const now = Math.floor(Date.now() / 1000);
 		const rateLimitWindow = getRateLimitUnitInSecs(apiProxy.rateLimitUnit);
 		const windowStart = Math.floor(now / rateLimitWindow) * rateLimitWindow;
 
-		// Get the current count from KV, if any
-		const rateLimitKey = `rateLimit/${apiProxy.id}/${windowStart}`;
+		// Get the current count for this user + proxy from KV, if any
+		const rateLimitKey = `rateLimit/${apiProxy.id}/${uid}/${windowStart}`;
 		const requestCount = await env.BACKMESH_KV.get(rateLimitKey);
 		let count = requestCount ? parseInt(requestCount, 10) : 0;
 
