@@ -11,16 +11,20 @@ export default {
 		if (!backmeshUid || !apiProxyName) {
 			return new Response('Invalid pathname', { status: 500 });
 		}
-		const apiProxy = await kv.getAdminApiProxy(env, backmeshUid, apiProxyName);
+		let apiProxy;
+		try {
+			apiProxy = await kv.getAdminApiProxy(env, backmeshUid, apiProxyName);
+		} catch (error: any) {
+			console.error(error);
+			const status = error instanceof TypeError ? 400 : 500;
+			return new Response(error.message ?? 'Unknown error', { status });
+		}
 		const authHeader = auth.getAuthHeader(request, apiProxy.apiReqHeader);
 		if (authHeader === null)
 			return new Response('Missing or invalid Authorization header', {
 				status: 401,
 			});
-		const uid = await auth.firebaseUidFromJwt(
-			authHeader.extractedJwt,
-			apiProxy.authPublicKey,
-		);
+		const uid = await auth.getUidFromJwt(authHeader.extractedJwt, apiProxy);
 		if (uid === null) return new Response('Invalid token', { status: 401 });
 		const rateLimit = await kv.rateLimit(env, apiProxy);
 		if (rateLimit)
@@ -35,11 +39,15 @@ export default {
 			apiUrl = url.toString();
 		}
 
-		const init = {
+		const init: RequestInit = {
 			method: request.method,
 			headers: auth.newProxyHeaders(request, authHeader, apiProxy.apiPrivateKey),
-			body: await request.clone().text(),
 		};
+
+		// GET and HEAD requests do not have a body
+		if (request.body) {
+			init.body = await request.clone().text();
+		}
 
 		const response = await fetch(apiUrl, init);
 

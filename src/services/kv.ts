@@ -2,6 +2,7 @@ import { decrypt, encrypt } from './crypto';
 
 export enum AuthProviderType {
 	FIREBASE = 'Firebase',
+	SUPABASE = 'Supabase',
 }
 
 export enum ApiProxySchemaVersion {
@@ -42,6 +43,7 @@ export type ApiProxy = {
 	apiReqHeader: string;
 	rateLimitUnit: RateLimitUnit;
 	rateLimit: number;
+	authAppId: string;
 };
 
 // Type guard to check if an object is of type ApiProxy at runtime
@@ -67,6 +69,9 @@ function assertApiProxy(obj: any): obj is ApiProxy {
 	}
 	if (typeof obj.apiUrl !== 'string') {
 		throw new TypeError('apiUrl is not a string');
+	}
+	if (typeof obj.authAppId !== 'string') {
+		throw new TypeError('authAppId is not a string');
 	}
 	if (typeof obj.apiPrivateKey !== 'string') {
 		throw new TypeError('apiPrivateKey is not a string');
