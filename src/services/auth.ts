@@ -100,6 +100,9 @@ export default {
 	newProxyHeaders(request: Request, header: AuthHeader, apiKey: string): Headers {
 		const headers = new Headers(request.headers);
 		headers.set(header.field, header.value.replace(header.extractedJwt, apiKey));
+		if (!headers.has('Content-Type')) {
+			headers.set('Content-Type', 'application/json');
+		}
 		return headers;
 	},
 };
