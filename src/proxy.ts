@@ -9,14 +9,14 @@ export default {
 		const backmeshUid = parts.at(2);
 		const apiProxyName = parts.at(3);
 		if (!backmeshUid || !apiProxyName) {
-			return new Response('Invalid pathname', { status: 500 });
+			return new Response('Invalid pathname', { status: 400 });
 		}
 		let apiProxy;
 		try {
 			apiProxy = await kv.getAdminApiProxy(env, backmeshUid, apiProxyName);
 		} catch (error: any) {
 			console.error(error);
-			const status = error instanceof TypeError ? 400 : 500;
+			const status = error instanceof TypeError ? 404 : 500;
 			return new Response(error.message ?? 'Unknown error', { status });
 		}
 		const authHeader = auth.getAuthHeader(request, apiProxy.apiReqHeader);

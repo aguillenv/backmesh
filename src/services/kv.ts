@@ -145,11 +145,18 @@ function generateId(length: number = 20): string {
 	return Array.from(array, (byte) => chars[byte % chars.length]).join('');
 }
 
+function isValidStr(testStr: string) {
+	return typeof testStr === 'string' && testStr.trim() !== '';
+}
+
 export default {
 	async newApiProxy(env: Env, uid: string, value: any): Promise<ApiProxy> {
 		const id = generateId();
 		value.id = id;
 		value.proxyUrl = `https://edge.backmesh.com/v1/proxy/${uid}/${id}`;
+		if (!isValidStr(value.apiPrivateKey)) {
+			throw new TypeError('apiPrivateKey is not a valid string');
+		}
 		value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		assertApiProxy(value);
 		await create<ApiProxy>(env, `${uid}/${id}`, value);
@@ -166,7 +173,7 @@ export default {
 	): Promise<ApiProxy> {
 		assertApiProxy(value);
 		// user is trying to set a new one
-		if (value.apiPrivateKey.length > 0) {
+		if (isValidStr(value.apiPrivateKey)) {
 			value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		}
 		await edit<ApiProxy>(env, `${uid}/${id}`, value, ['id', 'proxyUrl']);

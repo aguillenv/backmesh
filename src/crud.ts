@@ -33,8 +33,8 @@ export default {
 		// PUT and DELETE need the id
 		// GET will list if it does not get it
 		const backmeshUid = parts.at(2);
-		if (uid != backmeshUid) {
-			new Response('Invalid token', { status: 401 });
+		if (uid !== backmeshUid) {
+			return new Response('Invalid token', { status: 401 });
 		}
 		const id = parts.at(3);
 		switch (request.method) {
