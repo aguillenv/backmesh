@@ -6,7 +6,7 @@ export type AuthHeader = {
 	extractedJwt: string;
 };
 
-async function firebaseUidFromJwt(
+export async function firebaseUidFromJwt(
 	token: string,
 	publicFirebaseKey: string,
 ): Promise<string | null> {
@@ -36,7 +36,7 @@ async function firebaseUidFromJwt(
 	return data && data.users && data.users.length > 0 ? data.users[0].localId : null;
 }
 
-async function supabaseUidFromJwt(
+export async function supabaseUidFromJwt(
 	token: string,
 	publicSupabaseKey: string,
 	authAppId: string,
