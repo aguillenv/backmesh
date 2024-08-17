@@ -1,4 +1,4 @@
-name: Cloudflare Worker Test
+name: Cloudflare Worker
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  test-worker:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -21,5 +21,21 @@ jobs:
           echo "TEST_USER_PASS=${{ secrets.TEST_USER_PASS }}" >> .dev.vars
           echo "NIMBUS_GEMINI_API_KEY=${{ secrets.NIMBUS_GEMINI_API_KEY }}" >> .dev.vars
 
-      - name: Run Cloudflare Worker test
+      - name: Run tests
         run: npx vitest run
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install wrangler
+        run: npm install
+
+      - name: Deploy to Cloudflare
+        run: npx wrangler publish
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
