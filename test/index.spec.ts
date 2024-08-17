@@ -1,4 +1,3 @@
-// test/index.spec.ts
 import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
@@ -64,9 +63,14 @@ const backmeshJwt = await getTokenFromFirebaseKey(
 	'lfdepombo+backmesh@gmail.com',
 	env.TEST_USER_PASS,
 );
-const nimbusJwt = await getTokenFromFirebaseKey(
+const firstNimbusUserJwt = await getTokenFromFirebaseKey(
 	nimbusFirebaseKey,
 	'lfdepombo+nimbus@gmail.com',
+	env.TEST_USER_PASS,
+);
+const secondNimbusUserJwt = await getTokenFromFirebaseKey(
+	nimbusFirebaseKey,
+	'lfdepombo+nimbus2@gmail.com',
 	env.TEST_USER_PASS,
 );
 const invalidProxyInit = JSON.stringify({
@@ -74,7 +78,7 @@ const invalidProxyInit = JSON.stringify({
 	apiReqHeader: 'x-goog-api-key',
 	authPublicKey: nimbusFirebaseKey,
 	authAppId: 'nimbus-d5268',
-	rateLimit: 10,
+	rateLimit: 2,
 	rateLimitUnit: RateLimitUnit.MINUTE,
 	authType: AuthProviderType.FIREBASE,
 });
@@ -175,7 +179,7 @@ describe('API Proxy Firebase + Gemini', () => {
 			{
 				method: 'GET',
 				headers: {
-					[reqHeader]: nimbusJwt,
+					[reqHeader]: firstNimbusUserJwt,
 				},
 			},
 		);
@@ -199,30 +203,72 @@ describe('API Proxy Firebase + Gemini', () => {
 			{
 				method: 'GET',
 				headers: {
-					InvalidHeader: nimbusJwt,
+					InvalidHeader: firstNimbusUserJwt,
 				},
 			},
 		);
 		expect(response.status).toBe(401);
 
 		// not a valid path in proxy
+		// but counts towards rate limit as 1st request for 1st user
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${backmeshTestUserId}/${proxyId!}/`,
 			{
 				method: 'GET',
 				headers: {
-					[reqHeader]: nimbusJwt,
+					[reqHeader]: firstNimbusUserJwt,
 				},
 			},
 		);
 		expect(response.status).toBe(404);
 
+		// 2nd request for 1st user to proxy
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${backmeshTestUserId}/${proxyId!}/v1beta/models/gemini-pro`,
 			{
 				method: 'GET',
 				headers: {
-					[reqHeader]: nimbusJwt,
+					[reqHeader]: firstNimbusUserJwt,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// 3rd request for 1st user should rate limit
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${backmeshTestUserId}/${proxyId!}/v1beta/models/gemini-pro`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: firstNimbusUserJwt,
+				},
+			},
+		);
+		expect(response.status).toBe(429);
+
+		// but 1st request for 2nd user should go through
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${backmeshTestUserId}/${proxyId!}/v1beta/models/gemini-pro`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: secondNimbusUserJwt,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// Wait for 60 seconds before making the next request for the 1st user
+		const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+		await wait(60000);
+
+		// now the next request for 1st user should not rate limit
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${backmeshTestUserId}/${proxyId!}/v1beta/models/gemini-pro`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: firstNimbusUserJwt,
 				},
 			},
 		);
