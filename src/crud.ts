@@ -40,7 +40,7 @@ export default {
 		switch (request.method) {
 			case 'POST':
 				if (!request.body) {
-					return new Response('No body in request', { status: 500 });
+					return new Response('No body in request', { status: 400 });
 				}
 				return handleRequest(async () =>
 					kv.newApiProxy(env, uid, await request.json()),
@@ -48,10 +48,10 @@ export default {
 
 			case 'PUT':
 				if (id === undefined) {
-					return new Response('Invalid pathname', { status: 500 });
+					return new Response('Invalid pathname', { status: 400 });
 				}
 				if (!request.body) {
-					return new Response('No body in request', { status: 500 });
+					return new Response('No body in request', { status: 400 });
 				}
 				return handleRequest(async () =>
 					kv.editApiProxy(env, uid, id!, await request.json()),
@@ -66,7 +66,7 @@ export default {
 
 			case 'DELETE':
 				if (id === undefined) {
-					return new Response('Invalid pathname', { status: 500 });
+					return new Response('Invalid pathname', { status: 400 });
 				}
 				return handleRequest(async () => kv.delApiProxy(env, uid, id!));
 

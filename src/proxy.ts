@@ -26,7 +26,7 @@ export default {
 			});
 		const uid = await auth.getUidFromJwt(authHeader.extractedJwt, apiProxy);
 		if (uid === null) return new Response('Invalid token', { status: 401 });
-		const rateLimit = await kv.rateLimit(env, apiProxy, uid);
+		const rateLimit = await kv.rateLimit(env, backmeshUid, apiProxy, uid);
 		if (rateLimit)
 			return new Response('Backmesh request limit exceeded', { status: 429 });
 		const pathName = parts.slice(4).join('/');

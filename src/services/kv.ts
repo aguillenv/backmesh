@@ -149,17 +149,25 @@ function isValidStr(testStr: string) {
 	return typeof testStr === 'string' && testStr.trim() !== '';
 }
 
+function getProxyKey(backmeshUid: string, id: string) {
+	return `${backmeshUid}/proxies/${id}`;
+}
+
+function getProxiesKey(backmeshUid: string) {
+	return `${backmeshUid}/proxies/`;
+}
+
 export default {
-	async newApiProxy(env: Env, uid: string, value: any): Promise<ApiProxy> {
+	async newApiProxy(env: Env, backmeshUid: string, value: any): Promise<ApiProxy> {
 		const id = generateId();
 		value.id = id;
-		value.proxyUrl = `https://edge.backmesh.com/v1/proxy/${uid}/${id}`;
+		value.proxyUrl = `https://edge.backmesh.com/v1/proxy/${backmeshUid}/${id}`;
 		if (!isValidStr(value.apiPrivateKey)) {
 			throw new TypeError('apiPrivateKey is not a valid string');
 		}
 		value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		assertApiProxy(value);
-		await create<ApiProxy>(env, `${uid}/${id}`, value);
+		await create<ApiProxy>(env, getProxyKey(backmeshUid, id), value);
 		// do not return private key
 		value.apiPrivateKey = '';
 		return value;
@@ -167,7 +175,7 @@ export default {
 
 	async editApiProxy(
 		env: Env,
-		uid: string,
+		backmeshUid: string,
 		id: string,
 		value: any,
 	): Promise<ApiProxy> {
@@ -176,30 +184,35 @@ export default {
 		if (isValidStr(value.apiPrivateKey)) {
 			value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		}
-		await edit<ApiProxy>(env, `${uid}/${id}`, value, ['id', 'proxyUrl']);
+		await edit<ApiProxy>(env, getProxyKey(backmeshUid, id), value, [
+			'id',
+			'proxyUrl',
+		]);
 		// do not return private key
 		value.apiPrivateKey = '';
 		return value;
 	},
 
-	async getApiProxy(env: Env, uid: string, id: string) {
-		const key = `${uid}/${id}`;
+	async getApiProxy(env: Env, backmeshUid: string, id: string) {
+		const key = getProxyKey(backmeshUid, id);
 		const proxy = await get<ApiProxy>(env, key);
 		assertApiProxy(proxy);
 		proxy.apiPrivateKey = '';
 		return proxy;
 	},
 
-	async getAdminApiProxy(env: Env, uid: string, id: string) {
-		const key = `${uid}/${id}`;
+	async getAdminApiProxy(env: Env, backmeshUid: string, id: string) {
+		const key = getProxyKey(backmeshUid, id);
 		const proxy = await get<ApiProxy>(env, key);
 		proxy.apiPrivateKey = await decrypt(proxy.apiPrivateKey, env.PASSWORD);
 		assertApiProxy(proxy);
 		return proxy;
 	},
 
-	async getAllApiProxies(env: Env, uid: string): Promise<ApiProxy[]> {
-		const entries = await env.BACKMESH_KV.list({ prefix: `${uid}/` });
+	async getAllApiProxies(env: Env, backmeshUid: string): Promise<ApiProxy[]> {
+		const entries = await env.BACKMESH_KV.list({
+			prefix: getProxiesKey(backmeshUid),
+		});
 
 		const proxyPromises = entries.keys.map(async (key) => {
 			const proxy = await get<ApiProxy>(env, key.name);
@@ -211,19 +224,28 @@ export default {
 		return Promise.all(proxyPromises);
 	},
 
-	async delApiProxy(env: Env, uid: string, name: string) {
-		const key = `${uid}/${name}`;
+	async delApiProxy(env: Env, backmeshUid: string, id: string) {
+		console.log('delApiProxy');
+		const key = getProxyKey(backmeshUid, id);
 		await del(env, key);
 	},
 
 	// sliding window rate limiting per user
-	async rateLimit(env: Env, apiProxy: ApiProxy, uid: string): Promise<boolean> {
+	async rateLimit(
+		env: Env,
+		backmeshUid: string,
+		apiProxy: ApiProxy,
+		uid: string,
+	): Promise<boolean> {
 		const now = Math.floor(Date.now() / 1000);
 		const rateLimitWindow = getRateLimitUnitInSecs(apiProxy.rateLimitUnit);
 		const windowStart = Math.floor(now / rateLimitWindow) * rateLimitWindow;
 
 		// Get the current count for this user + proxy from KV, if any
-		const rateLimitKey = `rateLimit/${apiProxy.id}/${uid}/${windowStart}`;
+		const rateLimitKey = `${getProxyKey(
+			backmeshUid,
+			apiProxy.id,
+		)}/users/${uid}/rateLimit/${windowStart}`;
 		const requestCount = await env.BACKMESH_KV.get(rateLimitKey);
 		let count = requestCount ? parseInt(requestCount, 10) : 0;
 

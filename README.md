@@ -33,18 +33,45 @@ npm run dev
 
 ## Data Model
 
-Cloudflare KV is the main data store. Version schemas to avoid insidious bugs down the line. Resources have unique alphanumeric names set by us
+Cloudflare KV is the main data store. Version schemas to avoid insidious bugs down the line. Resources have unique alphanumeric names set by us. Collections do not end in template.
 
-App has key `${uid}/app/${id}` and value:
+### API Proxy
 
-- `authPublicKey`
-- `authAppId`
-- `authType` - `supabase`, `firebase`
+`${backmeshUid}/proxies[]`
 
-ApiProxy has key `${uid}/apiProxy/${id}` and value:
+- `${backmeshUid}/proxies/${proxyId}`
 
-- `apiUrl`
-- `privateApiKey` (encrypted by us)
-- `proxyUrl` (set by us)
-- `appKvId`
-- `accessRules`
+<!--
+### API Proxy End User
+
+`${backmeshUid}/proxies/${proxyId}/users[]`
+- `${backmeshUid}/proxies/${proxyId}/users/{uid}`
+- can have cummulative summaries or indices down the line
+
+ ### API Proxy per user request history
+
+`${backmeshUid}/proxies/${proxyId}/users/{uid}/requests[]`
+- `${backmeshUid}/proxies/${proxyId}/users/{uid}/requests/{epochTS}-{statusCode}`
+
+-->
+
+### API Proxy per user rate limit
+
+`${backmeshUid}/proxies/${proxyId}/users/{uid}/rateLimit[]`
+
+- `${backmeshUid}/proxies/${proxyId}/users/{uid}/rateLimit/${windowstart}`
+
+<!--
+
+### API Proxy protected resourecs
+
+`${backmeshUid}/proxies/${proxyId}/files[]`
+
+- `${backmeshUid}/proxies/${proxyId}/files/${file.id}`
+  uid that owns it
+
+`${backmeshUid}/proxies/${proxyId}/threads[]`
+
+- `${backmeshUid}/proxies/${proxyId}/threads/${file.id}`
+
+-->

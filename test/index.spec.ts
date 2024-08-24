@@ -167,7 +167,7 @@ describe('API Proxy Firebase + Gemini', () => {
 		});
 		expect(response.status).toBe(400);
 	});
-	it('creates and uses a new proxy', async () => {
+	it('creates, uses and deletes a new proxy', async () => {
 		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
 			method: 'POST',
 			headers: {
@@ -273,6 +273,27 @@ describe('API Proxy Firebase + Gemini', () => {
 				method: 'GET',
 				headers: {
 					[reqHeader]: testUser1stUserJwt,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// delete without proxy id fails
+		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
+			method: 'DELETE',
+			headers: {
+				Authorization: testUserJwt,
+			},
+		});
+		expect(response.status).toBe(400);
+
+		// successfully delete
+		response = await SELF.fetch(
+			`https://example.com/v1/crud/${testUserId}/${proxyId!}`,
+			{
+				method: 'DELETE',
+				headers: {
+					Authorization: testUserJwt,
 				},
 			},
 		);
