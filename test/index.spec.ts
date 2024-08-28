@@ -1,5 +1,5 @@
 import { env, SELF } from 'cloudflare:test';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { firebaseUidFromJwt } from '../src/services/auth';
 import { ApiProxy, AuthProviderType, RateLimitUnit } from '../src/services/kv';
@@ -118,7 +118,7 @@ describe('Bad proxy requests', () => {
 });
 
 let response, proxyId, reqHeader: string;
-describe('Firebase + Gemini API Proxy Failed Creaties', () => {
+describe('Firebase + Gemini API Proxy Failed Creations', () => {
 	it('fails to create proxy with no token', async () => {
 		response = await SELF.fetch('https://example.com/v1/crud/backmeshUid', {
 			method: 'POST',
@@ -181,8 +181,9 @@ describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 	});
 });
 
-describe('Firebase + OpenAI API Proxy', () => {
-	beforeEach(async () => {
+describe('Firebase + OpenAI API Proxy user access control for files', () => {
+	let fileId1stUser: string, fileId2ndUser: string;
+	beforeAll(async () => {
 		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
 			method: 'POST',
 			headers: {
@@ -197,22 +198,7 @@ describe('Firebase + OpenAI API Proxy', () => {
 		expect(data.apiPrivateKey === '').toBe(true);
 		proxyId = data.id;
 		reqHeader = JSON.parse(openAIProxyInit)['apiReqHeader'];
-	});
 
-	it('forbids /batches which is not in whitelist', async () => {
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/batches`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
-				},
-			},
-		);
-		expect(response.status).toBe(403);
-	});
-
-	it('user access control for files', async () => {
 		const body = (() => {
 			const formData = new FormData();
 			formData.append(
@@ -223,6 +209,7 @@ describe('Firebase + OpenAI API Proxy', () => {
 			formData.append('purpose', 'fine-tune');
 			return formData;
 		})();
+
 		// 1st user creates file
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
@@ -237,103 +224,7 @@ describe('Firebase + OpenAI API Proxy', () => {
 		if (response.status !== 200)
 			console.error('Response body:', await response.text());
 		expect(response.status).toBe(200);
-		let fileId1stUser = ((await response.json()) as any).id;
-
-		// 1st user can get it directly
-		if (response.status !== 200)
-			console.error('Response body:', await response.text());
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
-				},
-			},
-		);
-		expect(response.status).toBe(200);
-
-		// 1st user can get contents
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/content`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
-				},
-			},
-		);
-		if (response.status !== 200)
-			console.error('Response body:', await response.text());
-		expect(response.status).toBe(200);
-
-		// 1st user can get it when listing files
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
-				},
-			},
-		);
-		expect(response.status).toBe(200);
-		let res: any[] = await response.json();
-		expect(res.length).toBe(1);
-
-		// 2nd user fails to get it directly
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
-				},
-			},
-		);
-		expect(response.status).toBe(403);
-
-		// 2nd user fails to get contents
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/contents`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
-				},
-			},
-		);
-		if (response.status !== 403)
-			console.error('Response body:', await response.text());
-		expect(response.status).toBe(403);
-
-		// 2nd user fails to get it when listing files
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
-				},
-			},
-		);
-		expect(response.status).toBe(200);
-		res = await response.json();
-		expect(res.length).toBe(0);
-
-		// 2nd user cannot delete
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/contents`,
-			{
-				method: 'DELETE',
-				headers: {
-					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
-				},
-			},
-		);
-		if (response.status !== 403)
-			console.error('Response body:', await response.text());
-		expect(response.status).toBe(403);
+		fileId1stUser = ((await response.json()) as any).id;
 
 		// 2nd user creates file
 		response = await SELF.fetch(
@@ -349,9 +240,150 @@ describe('Firebase + OpenAI API Proxy', () => {
 		if (response.status !== 200)
 			console.error('Response body:', await response.text());
 		expect(response.status).toBe(200);
-		let fileId2ndUser = ((await response.json()) as any).id;
+		fileId2ndUser = ((await response.json()) as any).id;
+	});
+	afterAll(async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+	});
 
-		// 1st user fails to get it
+	it('forbids /batches which is not in whitelist', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/batches`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+	});
+
+	it('1st user can get it directly', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+	});
+
+	it('1st user can get contents', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/content`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+	});
+
+	it('1st user only list its files', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+		let res: any[] = await response.json();
+		expect(res.length).toBe(1);
+	});
+
+	it('2nd user only lists its files', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+	});
+
+	it('2nd user fails to get contents', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/contents`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 403)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(403);
+	});
+
+	it('2nd user fails to get it when listing files', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+		let res: any = await response.json();
+		expect(res.length).toBe(1);
+	});
+
+	it('2nd user cannot delete', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 403)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(403);
+	});
+
+	it('1st user fails to get it', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}`,
 			{
@@ -362,10 +394,11 @@ describe('Firebase + OpenAI API Proxy', () => {
 			},
 		);
 		expect(response.status).toBe(403);
+	});
 
-		// 1st user cannot delete
+	it('1st user cannot delete', async () => {
 		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}/contents`,
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}`,
 			{
 				method: 'DELETE',
 				headers: {
@@ -376,8 +409,9 @@ describe('Firebase + OpenAI API Proxy', () => {
 		if (response.status !== 403)
 			console.error('Response body:', await response.text());
 		expect(response.status).toBe(403);
+	});
 
-		// 2nd user can get it
+	it('2nd user can get it', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}`,
 			{
@@ -388,8 +422,9 @@ describe('Firebase + OpenAI API Proxy', () => {
 			},
 		);
 		expect(response.status).toBe(200);
+	});
 
-		// 2nd user can get contents
+	it('2nd user can get contents', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}/content`,
 			{
@@ -403,8 +438,27 @@ describe('Firebase + OpenAI API Proxy', () => {
 			console.error('Response body:', await response.text());
 		expect(response.status).toBe(200);
 	});
+});
 
-	it('user access control for threads', async () => {
+describe('Firebase + OpenAI Proxy user access control for threads', async () => {
+	let threadId1stUser: string, threadId2ndUser: string;
+	beforeAll(async () => {
+		// create proxy
+		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
+			method: 'POST',
+			headers: {
+				Authorization: testUserJwt,
+			},
+			body: openAIProxyInit,
+		});
+		expect(response.status).toBe(200);
+		let data = (await response.json()) as ApiProxy;
+		expect(data.id.length).toBeGreaterThan(0);
+		expect(data.proxyUrl.length).toBeGreaterThan(0);
+		expect(data.apiPrivateKey === '').toBe(true);
+		proxyId = data.id;
+		reqHeader = JSON.parse(openAIProxyInit)['apiReqHeader'];
+
 		// 1st user creates thread
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads`,
@@ -417,72 +471,7 @@ describe('Firebase + OpenAI API Proxy', () => {
 			},
 		);
 		expect(response.status).toBe(200);
-		let threadId1stUser = ((await response.json()) as any).id;
-
-		// 1st user can get it directly
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
-					'OpenAI-Beta': 'assistants=v2',
-				},
-			},
-		);
-		expect(response.status).toBe(200);
-
-		// 1st user can get messages
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}/messages`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
-					'OpenAI-Beta': 'assistants=v2',
-				},
-			},
-		);
-		expect(response.status).toBe(200);
-
-		// 2nd user fails to get it directly
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
-					'OpenAI-Beta': 'assistants=v2',
-				},
-			},
-		);
-		expect(response.status).toBe(403);
-
-		// 2nd user fails to get messages
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}/messages`,
-			{
-				method: 'GET',
-				headers: {
-					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
-					'OpenAI-Beta': 'assistants=v2',
-				},
-			},
-		);
-		expect(response.status).toBe(403);
-
-		// 2nd user cannot delete
-		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
-			{
-				method: 'DELETE',
-				headers: {
-					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
-					'OpenAI-Beta': 'assistants=v2',
-				},
-			},
-		);
-		expect(response.status).toBe(403);
+		threadId1stUser = ((await response.json()) as any).id;
 
 		// 2nd user creates thread
 		response = await SELF.fetch(
@@ -496,9 +485,108 @@ describe('Firebase + OpenAI API Proxy', () => {
 			},
 		);
 		expect(response.status).toBe(200);
-		let threadId2ndUser = ((await response.json()) as any).id;
+		threadId2ndUser = ((await response.json()) as any).id;
+	});
 
-		// 1st user fails to get it
+	afterAll(async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+	});
+
+	it('1st user can get it directly', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+	});
+
+	it('1st user can get messages', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}/messages`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+	});
+
+	it('2nd user fails to get it directly', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+	});
+
+	it('2nd user fails to get messages', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}/messages`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+	});
+	it('2nd user cannot delete', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+	});
+
+	it('1st user fails to get it', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}`,
 			{
@@ -510,8 +598,9 @@ describe('Firebase + OpenAI API Proxy', () => {
 			},
 		);
 		expect(response.status).toBe(403);
+	});
 
-		// 1st user cannot delete
+	it('1st user cannot delete', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}`,
 			{
@@ -523,8 +612,9 @@ describe('Firebase + OpenAI API Proxy', () => {
 			},
 		);
 		expect(response.status).toBe(403);
+	});
 
-		// 2nd user can get it
+	it('2nd user can get it', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}`,
 			{
@@ -536,8 +626,9 @@ describe('Firebase + OpenAI API Proxy', () => {
 			},
 		);
 		expect(response.status).toBe(200);
+	});
 
-		// 2nd user can get messages
+	it('2nd user can get messages', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}/messages`,
 			{
@@ -553,7 +644,7 @@ describe('Firebase + OpenAI API Proxy', () => {
 });
 
 describe('Firebase + Gemini API Proxy', () => {
-	beforeEach(async () => {
+	beforeAll(async () => {
 		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
 			method: 'POST',
 			headers: {
