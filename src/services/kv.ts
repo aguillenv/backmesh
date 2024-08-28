@@ -157,6 +157,24 @@ function getProxiesKey(backmeshUid: string) {
 	return `${backmeshUid}/proxies/`;
 }
 
+function getRateLimitKey(
+	backmeshUid: string,
+	id: string,
+	uid: string,
+	windowStart: number,
+) {
+	return `${getProxyKey(backmeshUid, id)}/users/${uid}/rateLimit/${windowStart}`;
+}
+
+// the key that maps to uid that owns this resource
+function getPrivateResourceKey(
+	backmeshUid: string,
+	proxyId: string,
+	resourceId: string,
+) {
+	return `${backmeshUid}/proxies/${proxyId}/resource/${resourceId}`;
+}
+
 export default {
 	async newApiProxy(env: Env, backmeshUid: string, value: any): Promise<ApiProxy> {
 		const id = generateId();
@@ -230,6 +248,43 @@ export default {
 		await del(env, key);
 	},
 
+	async newUserResource(
+		env: Env,
+		{
+			backmeshUid,
+			proxyId,
+			uid,
+			resourceId,
+		}: {
+			backmeshUid: string;
+			proxyId: string;
+			uid: string;
+			resourceId: string;
+		},
+	) {
+		const key = getPrivateResourceKey(backmeshUid, proxyId, resourceId);
+		await env.BACKMESH_KV.put(key, uid);
+	},
+
+	async isUserResource(
+		env: Env,
+		{
+			backmeshUid,
+			proxyId,
+			uid,
+			resourceId,
+		}: {
+			backmeshUid: string;
+			proxyId: string;
+			uid: string;
+			resourceId: string;
+		},
+	) {
+		const key = getPrivateResourceKey(backmeshUid, proxyId, resourceId);
+		const kvUid = await env.BACKMESH_KV.get(key);
+		return kvUid === uid;
+	},
+
 	// sliding window rate limiting per user
 	async rateLimit(
 		env: Env,
@@ -242,10 +297,12 @@ export default {
 		const windowStart = Math.floor(now / rateLimitWindow) * rateLimitWindow;
 
 		// Get the current count for this user + proxy from KV, if any
-		const rateLimitKey = `${getProxyKey(
+		const rateLimitKey = `${getRateLimitKey(
 			backmeshUid,
 			apiProxy.id,
-		)}/users/${uid}/rateLimit/${windowStart}`;
+			uid,
+			windowStart,
+		)}`;
 		const requestCount = await env.BACKMESH_KV.get(rateLimitKey);
 		let count = requestCount ? parseInt(requestCount, 10) : 0;
 

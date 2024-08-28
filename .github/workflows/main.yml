@@ -20,6 +20,7 @@ jobs:
         run: |
           echo "TEST_USER_PASS=${{ secrets.TEST_USER_PASS }}" >> .dev.vars
           echo "NIMBUS_GEMINI_API_KEY=${{ secrets.NIMBUS_GEMINI_API_KEY }}" >> .dev.vars
+          echo "NIMBUS_OPENAI_API_KEY=${{ secrets.NIMBUS_OPENAI_API_KEY }}" >> .dev.vars
 
       - name: Run tests
         run: npx vitest run

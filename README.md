@@ -61,17 +61,8 @@ Cloudflare KV is the main data store. Version schemas to avoid insidious bugs do
 
 - `${backmeshUid}/proxies/${proxyId}/users/{uid}/rateLimit/${windowstart}`
 
-<!--
+### API Proxy private resourecs
 
-### API Proxy protected resourecs
+`${backmeshUid}/proxies/${proxyId}/resource[]`
 
-`${backmeshUid}/proxies/${proxyId}/files[]`
-
-- `${backmeshUid}/proxies/${proxyId}/files/${file.id}`
-  uid that owns it
-
-`${backmeshUid}/proxies/${proxyId}/threads[]`
-
-- `${backmeshUid}/proxies/${proxyId}/threads/${file.id}`
-
--->
+- `${backmeshUid}/proxies/${proxyId}/resource/${resource.id}`

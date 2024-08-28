@@ -80,9 +80,20 @@ const invalidProxyInit = JSON.stringify({
 	rateLimitUnit: RateLimitUnit.MINUTE,
 	authType: AuthProviderType.FIREBASE,
 });
-const proxyInit = JSON.stringify({
+const geminiProxyInit = JSON.stringify({
 	...JSON.parse(invalidProxyInit),
 	apiPrivateKey: env.NIMBUS_GEMINI_API_KEY,
+});
+// TODO use supabase to test both
+const openAIProxyInit = JSON.stringify({
+	apiUrl: 'https://api.openai.com',
+	apiReqHeader: 'Authorization',
+	authPublicKey: testUserFirebaseKey,
+	apiPrivateKey: env.NIMBUS_OPENAI_API_KEY,
+	authAppId: 'nimbus-d5268',
+	rateLimit: 20,
+	rateLimitUnit: RateLimitUnit.MINUTE,
+	authType: AuthProviderType.FIREBASE,
 });
 
 describe('Bad proxy requests', () => {
@@ -114,7 +125,7 @@ describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 			headers: {
 				Authorization: 'asdfsdf',
 			},
-			body: proxyInit,
+			body: geminiProxyInit,
 		});
 		expect(response.status).toBe(401);
 	});
@@ -124,7 +135,7 @@ describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 			headers: {
 				Authorization: 'asdfsdf',
 			},
-			body: proxyInit,
+			body: geminiProxyInit,
 		});
 		expect(response.status).toBe(401);
 	});
@@ -134,7 +145,7 @@ describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 			headers: {
 				Authorizationnnnnn: testUserJwt,
 			},
-			body: proxyInit,
+			body: geminiProxyInit,
 		});
 		expect(response.status).toBe(401);
 	});
@@ -144,9 +155,8 @@ describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 			headers: {
 				Authorization: testUserJwt,
 			},
-			body: proxyInit,
+			body: geminiProxyInit,
 		});
-		console.log(await response.text());
 		expect(response.status).toBe(401);
 	});
 	it('fails to create proxy with invalid uid', async () => {
@@ -155,7 +165,7 @@ describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 			headers: {
 				Authorization: testUserJwt,
 			},
-			body: proxyInit,
+			body: geminiProxyInit,
 		});
 		expect(response.status).toBe(401);
 	});
@@ -171,14 +181,14 @@ describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 	});
 });
 
-describe('Firebase + Gemini API Proxy', () => {
+describe('Firebase + OpenAI API Proxy', () => {
 	beforeEach(async () => {
 		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
 			method: 'POST',
 			headers: {
 				Authorization: testUserJwt,
 			},
-			body: proxyInit,
+			body: openAIProxyInit,
 		});
 		expect(response.status).toBe(200);
 		let data = (await response.json()) as ApiProxy;
@@ -186,7 +196,378 @@ describe('Firebase + Gemini API Proxy', () => {
 		expect(data.proxyUrl.length).toBeGreaterThan(0);
 		expect(data.apiPrivateKey === '').toBe(true);
 		proxyId = data.id;
-		reqHeader = JSON.parse(proxyInit)['apiReqHeader'];
+		reqHeader = JSON.parse(openAIProxyInit)['apiReqHeader'];
+	});
+
+	it('forbids /batches which is not in whitelist', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/batches`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+	});
+
+	it('user access control for files', async () => {
+		const body = (() => {
+			const formData = new FormData();
+			formData.append(
+				'file',
+				new Blob(['example content'], { type: 'text/plain' }),
+				'example.txt',
+			);
+			formData.append('purpose', 'fine-tune');
+			return formData;
+		})();
+		// 1st user creates file
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
+			{
+				method: 'POST',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+				body,
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+		let fileId1stUser = ((await response.json()) as any).id;
+
+		// 1st user can get it directly
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// 1st user can get contents
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/content`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+
+		// 1st user can get it when listing files
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+		let res: any[] = await response.json();
+		expect(res.length).toBe(1);
+
+		// 2nd user fails to get it directly
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+
+		// 2nd user fails to get contents
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/contents`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 403)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(403);
+
+		// 2nd user fails to get it when listing files
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+		res = await response.json();
+		expect(res.length).toBe(0);
+
+		// 2nd user cannot delete
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId1stUser}/contents`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 403)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(403);
+
+		// 2nd user creates file
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files`,
+			{
+				method: 'POST',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+				body,
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+		let fileId2ndUser = ((await response.json()) as any).id;
+
+		// 1st user fails to get it
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+
+		// 1st user cannot delete
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}/contents`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 403)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(403);
+
+		// 2nd user can get it
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// 2nd user can get contents
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}/content`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 200)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(200);
+	});
+
+	it('user access control for threads', async () => {
+		// 1st user creates thread
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads`,
+			{
+				method: 'POST',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+		let threadId1stUser = ((await response.json()) as any).id;
+
+		// 1st user can get it directly
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// 1st user can get messages
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}/messages`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// 2nd user fails to get it directly
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+
+		// 2nd user fails to get messages
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}/messages`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+
+		// 2nd user cannot delete
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId1stUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+
+		// 2nd user creates thread
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads`,
+			{
+				method: 'POST',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+		let threadId2ndUser = ((await response.json()) as any).id;
+
+		// 1st user fails to get it
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+
+		// 1st user cannot delete
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}`,
+			{
+				method: 'DELETE',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(403);
+
+		// 2nd user can get it
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+
+		// 2nd user can get messages
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/threads/${threadId2ndUser}/messages`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser2ndUserJwt}`,
+					'OpenAI-Beta': 'assistants=v2',
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+	});
+});
+
+describe('Firebase + Gemini API Proxy', () => {
+	beforeEach(async () => {
+		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
+			method: 'POST',
+			headers: {
+				Authorization: testUserJwt,
+			},
+			body: geminiProxyInit,
+		});
+		expect(response.status).toBe(200);
+		let data = (await response.json()) as ApiProxy;
+		expect(data.id.length).toBeGreaterThan(0);
+		expect(data.proxyUrl.length).toBeGreaterThan(0);
+		expect(data.apiPrivateKey === '').toBe(true);
+		proxyId = data.id;
+		reqHeader = JSON.parse(geminiProxyInit)['apiReqHeader'];
 	});
 
 	it('bad path', async () => {
