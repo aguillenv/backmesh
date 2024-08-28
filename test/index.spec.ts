@@ -1,5 +1,5 @@
 import { env, SELF } from 'cloudflare:test';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 import { firebaseUidFromJwt } from '../src/services/auth';
 import { ApiProxy, AuthProviderType, RateLimitUnit } from '../src/services/kv';
@@ -46,7 +46,7 @@ const testUserJwt = await getTokenFromFirebaseKey(
 	env.TEST_USER_PASS,
 );
 
-describe('firebase', () => {
+describe('Firebase Authentication UID <=> JWT Mapper', () => {
 	it('properly auth user to get jwt and the use that jwt to get uid', async () => {
 		const uid = await firebaseUidFromJwt(testUserJwt, backmeshFirebaseKey);
 		expect(uid).toMatch(testUserId);
@@ -61,6 +61,8 @@ const testUser1stUserJwt = await getTokenFromFirebaseKey(
 	testUser1stUserEmail,
 	env.TEST_USER_PASS,
 );
+console.log(testUser1stUserJwt);
+
 const testUser2ndUserEmail = 'lfdepombo+nimbus2@gmail.com';
 // const testUser2ndUserId = 'GTUe0voWDiSerEk9iJvv3q9W9Ur1';
 const testUser2ndUserJwt = await getTokenFromFirebaseKey(
@@ -104,8 +106,8 @@ describe('Bad proxy requests', () => {
 	});
 });
 
-describe('API Proxy Firebase + Gemini', () => {
-	let response, proxyId, reqHeader;
+let response, proxyId, reqHeader: string;
+describe('Firebase + Gemini API Proxy Failed Creaties', () => {
 	it('fails to create proxy with no token', async () => {
 		response = await SELF.fetch('https://example.com/v1/crud/backmeshUid', {
 			method: 'POST',
@@ -167,7 +169,10 @@ describe('API Proxy Firebase + Gemini', () => {
 		});
 		expect(response.status).toBe(400);
 	});
-	it('creates, uses and deletes a new proxy', async () => {
+});
+
+describe('Firebase + Gemini API Proxy', () => {
+	beforeEach(async () => {
 		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
 			method: 'POST',
 			headers: {
@@ -182,8 +187,9 @@ describe('API Proxy Firebase + Gemini', () => {
 		expect(data.apiPrivateKey === '').toBe(true);
 		proxyId = data.id;
 		reqHeader = JSON.parse(proxyInit)['apiReqHeader'];
+	});
 
-		// bad path
+	it('bad path', async () => {
 		response = await SELF.fetch(`https://example.com/v1/proxy/${testUserId}`, {
 			method: 'GET',
 			headers: {
@@ -191,8 +197,9 @@ describe('API Proxy Firebase + Gemini', () => {
 			},
 		});
 		expect(response.status).toBe(400);
+	});
 
-		// bad token
+	it('bad token', async () => {
 		response = await SELF.fetch(`https://example.com/v1/proxy/${testUserId}`, {
 			method: 'GET',
 			headers: {
@@ -200,8 +207,9 @@ describe('API Proxy Firebase + Gemini', () => {
 			},
 		});
 		expect(response.status).toBe(400);
+	});
 
-		// not using proxy header
+	it('not using proxy header', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}`,
 			{
@@ -212,7 +220,9 @@ describe('API Proxy Firebase + Gemini', () => {
 			},
 		);
 		expect(response.status).toBe(401);
+	});
 
+	it('rate limits correctly', async () => {
 		// not a valid path in proxy
 		// but counts towards rate limit as 1st request for 1st user
 		response = await SELF.fetch(
@@ -277,8 +287,9 @@ describe('API Proxy Firebase + Gemini', () => {
 			},
 		);
 		expect(response.status).toBe(200);
+	});
 
-		// delete without proxy id fails
+	it('delete without proxy id fails', async () => {
 		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
 			method: 'DELETE',
 			headers: {
@@ -286,8 +297,8 @@ describe('API Proxy Firebase + Gemini', () => {
 			},
 		});
 		expect(response.status).toBe(400);
-
-		// successfully delete
+	});
+	it('successfully deletes proxy', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/crud/${testUserId}/${proxyId!}`,
 			{
