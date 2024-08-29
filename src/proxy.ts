@@ -1,19 +1,29 @@
-import auth from './services/auth';
-import kv from './services/kv';
+import auth, { AuthHeader } from './services/auth';
+import kv, { ApiProxy } from './services/kv';
+
+export type ProxyRequest = {
+	endUserId: string;
+	backmeshUid: string;
+	proxyId: string;
+	authHeader: AuthHeader;
+	request: Request;
+	apiProxy: ApiProxy;
+	path: string;
+};
 
 export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+	async validate(request: Request, env: Env): Promise<ProxyRequest | Response> {
 		const requestUrl = new URL(request.url);
 		const parts = requestUrl.pathname.split('/').filter((part) => part);
 		// /v1/proxy/${backmeshUid}/${apiProxyName}/
 		const backmeshUid = parts.at(2);
-		const apiProxyName = parts.at(3);
-		if (!backmeshUid || !apiProxyName) {
+		const proxyId = parts.at(3);
+		if (!backmeshUid || !proxyId) {
 			return new Response('Invalid pathname', { status: 400 });
 		}
 		let apiProxy;
 		try {
-			apiProxy = await kv.getAdminApiProxy(env, backmeshUid, apiProxyName);
+			apiProxy = await kv.getAdminApiProxy(env, backmeshUid, proxyId);
 		} catch (error: any) {
 			console.error(error);
 			const status = error instanceof TypeError ? 404 : 500;
@@ -24,11 +34,26 @@ export default {
 			return new Response('Missing or invalid Authorization header', {
 				status: 401,
 			});
-		const uid = await auth.getUidFromJwt(authHeader.extractedJwt, apiProxy);
-		if (uid === null) return new Response('Invalid token', { status: 401 });
-		const rateLimit = await kv.rateLimit(env, backmeshUid, apiProxy, uid);
+		const endUserId = await auth.getUidFromJwt(authHeader.extractedJwt, apiProxy);
+		if (endUserId === null) return new Response('Invalid token', { status: 401 });
+		return {
+			apiProxy,
+			request,
+			authHeader,
+			proxyId,
+			backmeshUid,
+			endUserId,
+			path: parts.slice(4).join('/'),
+		};
+	},
+	async fetch(proxyRequest: ProxyRequest, env: Env) {
+		const { apiProxy, request, authHeader, proxyId, backmeshUid, endUserId } =
+			proxyRequest;
+		const rateLimit = await kv.rateLimit(env, backmeshUid, apiProxy, endUserId);
 		if (rateLimit)
 			return new Response('Backmesh request limit exceeded', { status: 429 });
+		const requestUrl = new URL(request.url);
+		const parts = requestUrl.pathname.split('/').filter((part) => part);
 		const pathName = parts.slice(4).join('/');
 		let fullApiUrl =
 			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
@@ -99,7 +124,7 @@ export default {
 				await kv.newUserResource(env, {
 					backmeshUid,
 					proxyId: apiProxy.id,
-					uid,
+					endUserId,
 					// files/lw388m83m4w8
 					resourceId: file.name.split('/').pop(),
 				});
@@ -109,7 +134,7 @@ export default {
 				const isOwner = await kv.isUserResource(env, {
 					backmeshUid,
 					proxyId: apiProxy.id,
-					uid,
+					endUserId,
 					resourceId,
 				});
 				if (!isOwner) return new Response('Forbidden', { status: 403 });
@@ -126,7 +151,7 @@ export default {
 						const isOwner = await kv.isUserResource(env, {
 							backmeshUid,
 							proxyId: apiProxy.id,
-							uid,
+							endUserId,
 							resourceId: file.name.split('/').pop(),
 						});
 						return isOwner ? file : null;
@@ -156,8 +181,8 @@ export default {
 					const resourceId = jsonResponse.id;
 					await kv.newUserResource(env, {
 						backmeshUid,
-						proxyId: apiProxy.id,
-						uid,
+						proxyId,
+						endUserId,
 						resourceId,
 					});
 					// Files API
@@ -175,8 +200,8 @@ export default {
 					const resourceId = pathParts[2];
 					const isOwner = await kv.isUserResource(env, {
 						backmeshUid,
-						proxyId: apiProxy.id,
-						uid,
+						proxyId,
+						endUserId,
 						resourceId,
 					});
 					if (!isOwner) return new Response('Forbidden', { status: 403 });
@@ -195,8 +220,8 @@ export default {
 						(jsonResponse.data as any[]).map(async (file) => {
 							const isOwner = await kv.isUserResource(env, {
 								backmeshUid,
-								proxyId: apiProxy.id,
-								uid,
+								proxyId,
+								endUserId,
 								resourceId: file.id,
 							});
 							return isOwner ? file : null;

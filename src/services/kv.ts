@@ -166,7 +166,7 @@ function getRateLimitKey(
 	return `limits/${backmeshUid}/${proxyId}/${uid}-${windowStart}`;
 }
 
-// the key that maps to uid that owns this resource
+// value is a string uid that owns this resource
 function getPrivateResourceKey(
 	backmeshUid: string,
 	proxyId: string,
@@ -253,17 +253,17 @@ export default {
 		{
 			backmeshUid,
 			proxyId,
-			uid,
+			endUserId,
 			resourceId,
 		}: {
 			backmeshUid: string;
 			proxyId: string;
-			uid: string;
+			endUserId: string;
 			resourceId: string;
 		},
 	) {
 		const key = getPrivateResourceKey(backmeshUid, proxyId, resourceId);
-		await env.BACKMESH_KV.put(key, uid);
+		await env.BACKMESH_KV.put(key, endUserId);
 	},
 
 	async isUserResource(
@@ -271,18 +271,18 @@ export default {
 		{
 			backmeshUid,
 			proxyId,
-			uid,
+			endUserId,
 			resourceId,
 		}: {
 			backmeshUid: string;
 			proxyId: string;
-			uid: string;
+			endUserId: string;
 			resourceId: string;
 		},
 	) {
 		const key = getPrivateResourceKey(backmeshUid, proxyId, resourceId);
 		const kvUid = await env.BACKMESH_KV.get(key);
-		return kvUid === uid;
+		return kvUid === endUserId;
 	},
 
 	// sliding window rate limiting per user
@@ -290,7 +290,7 @@ export default {
 		env: Env,
 		backmeshUid: string,
 		apiProxy: ApiProxy,
-		uid: string,
+		endUserId: string,
 	): Promise<boolean> {
 		const now = Math.floor(Date.now() / 1000);
 		const rateLimitWindow = getRateLimitUnitInSecs(apiProxy.rateLimitUnit);
@@ -300,7 +300,7 @@ export default {
 		const rateLimitKey = `${getRateLimitKey(
 			backmeshUid,
 			apiProxy.id,
-			uid,
+			endUserId,
 			windowStart,
 		)}`;
 		const requestCount = await env.BACKMESH_KV.get(rateLimitKey);

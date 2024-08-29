@@ -15,7 +15,7 @@ async function handleRequest(callback: () => Promise<any>): Promise<Response> {
 }
 
 export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+	async fetch(request: Request, env: Env) {
 		const authHeader = auth.getAuthHeader(request, 'Authorization');
 		if (authHeader === null)
 			return new Response('Missing or invalid Authorization header', {

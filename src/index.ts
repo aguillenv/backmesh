@@ -1,5 +1,6 @@
 import crud from './crud';
 import proxy from './proxy';
+import posthog from './services/posthog';
 
 // Reference: https://developers.cloudflare.com/workers/examples/cors-header-proxy
 // https://stackoverflow.com/questions/66486610/how-to-set-cors-in-cloudflare-workers
@@ -50,9 +51,16 @@ export default {
 		const path = url.pathname;
 		let resp;
 		if (path.startsWith('/v1/crud')) {
-			resp = await crud.fetch(request, env, ctx);
+			resp = await crud.fetch(request, env);
 		} else if (path.startsWith('/v1/proxy')) {
-			resp = await proxy.fetch(request, env, ctx);
+			const respOrReq = await proxy.validate(request, env);
+			resp =
+				respOrReq instanceof Response
+					? respOrReq
+					: await proxy.fetch(respOrReq, env);
+			// log request without blocking response if request was valid
+			if (!(respOrReq instanceof Response))
+				ctx.waitUntil(posthog.captureProxyReq(respOrReq, resp.status));
 		}
 		if (resp === undefined) return new Response('Not Found', { status: 404 });
 		resp.headers.set('Access-Control-Allow-Origin', '*');
