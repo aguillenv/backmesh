@@ -30,14 +30,14 @@ export default {
 		if (rateLimit)
 			return new Response('Backmesh request limit exceeded', { status: 429 });
 		const pathName = parts.slice(4).join('/');
-		let apiUrl =
+		let fullApiUrl =
 			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
 
 		// v1/assistants, v1/vector_stores and v1/fine_tuning can be added as private endpoints
 		// whitelist of routes supported until someone complains and then understand their use case
 		const pathParts = pathName.split('/');
 		const route = pathParts[1];
-		if (apiProxy.apiUrl.startsWith('https://api.openai.com')) {
+		if (fullApiUrl.startsWith('https://api.openai.com')) {
 			const allowedPaths = [
 				'audio',
 				'chat',
@@ -52,11 +52,25 @@ export default {
 			}
 		}
 
+		// https://ai.google.dev/api/all-methods
+		if (fullApiUrl.startsWith('https://generativelanguage.googleapis.com')) {
+			const allowedInitPaths = [
+				'v1beta/files',
+				'upload/v1beta/files',
+				'v1beta/models',
+			];
+			if (!allowedInitPaths.some((path) => pathName.startsWith(path))) {
+				return new Response('Forbidden', { status: 403 });
+			}
+		}
+
 		// Add existing query parameters
 		if (requestUrl.searchParams.size > 0) {
-			const url = new URL(apiUrl);
-			url.search = requestUrl.search;
-			apiUrl = url.toString();
+			const url = new URL(fullApiUrl);
+			requestUrl.searchParams.forEach((value, key) => {
+				url.searchParams.append(key, value);
+			});
+			fullApiUrl = url.toString();
 		}
 
 		const init: RequestInit = {
@@ -72,13 +86,72 @@ export default {
 		let response = null;
 
 		const { readable, writable } = new TransformStream();
+		if (fullApiUrl.startsWith('https://generativelanguage.googleapis.com')) {
+			if (
+				pathName === 'upload/v1beta/files' &&
+				requestUrl.searchParams.has('upload_id')
+			) {
+				// parse response without consuming original
+				response = await fetch(fullApiUrl, init);
+				const jsonResponse: any = await response.clone().json();
+				const file = jsonResponse.file;
+
+				await kv.newUserResource(env, {
+					backmeshUid,
+					proxyId: apiProxy.id,
+					uid,
+					// files/lw388m83m4w8
+					resourceId: file.name.split('/').pop(),
+				});
+			} else if (route === 'files' && pathParts.length === 3) {
+				// GET or DELETE
+				const resourceId = pathParts[2];
+				const isOwner = await kv.isUserResource(env, {
+					backmeshUid,
+					proxyId: apiProxy.id,
+					uid,
+					resourceId,
+				});
+				if (!isOwner) return new Response('Forbidden', { status: 403 });
+				// GET v1/files lists all files
+				// parse response, grab id and set in KV
+			} else if (pathParts.length === 2 && route === 'files') {
+				// parse response and filter files that do not belong to this user
+				// assumes JSON
+				response = await fetch(fullApiUrl, init);
+				const jsonResponse: any = await response.clone().json();
+				// TODO handle pagination
+				const filteredFiles = await Promise.all(
+					(jsonResponse.files as any[]).map(async (file) => {
+						const isOwner = await kv.isUserResource(env, {
+							backmeshUid,
+							proxyId: apiProxy.id,
+							uid,
+							resourceId: file.name.split('/').pop(),
+						});
+						return isOwner ? file : null;
+					}),
+				).then((results) => results.filter((file) => file !== null));
+				const reconstructedResponse = {
+					...jsonResponse,
+					files: filteredFiles,
+				};
+				const writer = writable.getWriter();
+				writer.write(
+					new TextEncoder().encode(JSON.stringify(reconstructedResponse)),
+				);
+				writer.close();
+
+				return new Response(readable, response);
+			}
+		}
 
 		// TODO support /v1/uploads and resulting file created
 		if (apiProxy.apiUrl.startsWith('https://api.openai.com')) {
 			if (route === 'files' || route === 'threads') {
 				if (request.method === 'POST') {
 					// parse response without consuming original
-					response = await fetch(apiUrl, init);
+					response = await fetch(fullApiUrl, init);
 					const jsonResponse: any = await response.clone().json();
 					const resourceId = jsonResponse.id;
 					await kv.newUserResource(env, {
@@ -116,9 +189,9 @@ export default {
 				) {
 					// parse response and filter files that do not belong to this user
 					// assumes JSON
-					response = await fetch(apiUrl, init);
+					response = await fetch(fullApiUrl, init);
 					const jsonResponse: any = await response.clone().json();
-					const filteredResponse = await Promise.all(
+					const filteredData = await Promise.all(
 						(jsonResponse.data as any[]).map(async (file) => {
 							const isOwner = await kv.isUserResource(env, {
 								backmeshUid,
@@ -129,8 +202,14 @@ export default {
 							return isOwner ? file : null;
 						}),
 					).then((results) => results.filter((file) => file !== null));
+					const reconstructedResponse = {
+						...jsonResponse,
+						data: filteredData,
+					};
 					const writer = writable.getWriter();
-					writer.write(new TextEncoder().encode(JSON.stringify(filteredResponse)));
+					writer.write(
+						new TextEncoder().encode(JSON.stringify(reconstructedResponse)),
+					);
 					writer.close();
 
 					return new Response(readable, response);
@@ -139,7 +218,7 @@ export default {
 		}
 
 		if (!response) {
-			response = await fetch(apiUrl, init);
+			response = await fetch(fullApiUrl, init);
 		}
 
 		if (!response.body) {
