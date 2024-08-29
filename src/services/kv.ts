@@ -150,20 +150,20 @@ function isValidStr(testStr: string) {
 }
 
 function getProxyKey(backmeshUid: string, id: string) {
-	return `${backmeshUid}/proxies/${id}`;
+	return `proxies/${backmeshUid}/${id}`;
 }
 
 function getProxiesKey(backmeshUid: string) {
-	return `${backmeshUid}/proxies/`;
+	return `proxies/${backmeshUid}/`;
 }
 
 function getRateLimitKey(
 	backmeshUid: string,
-	id: string,
+	proxyId: string,
 	uid: string,
 	windowStart: number,
 ) {
-	return `${getProxyKey(backmeshUid, id)}/users/${uid}/rateLimit/${windowStart}`;
+	return `limits/${backmeshUid}/${proxyId}/${uid}-${windowStart}`;
 }
 
 // the key that maps to uid that owns this resource
@@ -172,7 +172,7 @@ function getPrivateResourceKey(
 	proxyId: string,
 	resourceId: string,
 ) {
-	return `${backmeshUid}/proxies/${proxyId}/resource/${resourceId}`;
+	return `resources/${backmeshUid}/${proxyId}/${resourceId}`;
 }
 
 export default {

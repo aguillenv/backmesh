@@ -19,6 +19,12 @@ Then install dependencies and run the worker locally with
 npm run dev
 ```
 
+To see the keys in the local KV run:
+
+```bash
+npx wrangler kv key list --namespace-id 67b1d8b6ace44c26b64fe00190a3b37f --local
+```
+
 ## Versioned Routes
 
 - `/v1/proxy` uses the user's JWT authentication and should only call KV to stay performant
@@ -37,32 +43,31 @@ Cloudflare KV is the main data store. Version schemas to avoid insidious bugs do
 
 ### API Proxy
 
-`${backmeshUid}/proxies[]`
+`proxies/${backmeshUid}/[]`
 
-- `${backmeshUid}/proxies/${proxyId}`
+- `proxies/${backmeshUid}/${proxyId}`
 
-<!--
 ### API Proxy End User
 
-`${backmeshUid}/proxies/${proxyId}/users[]`
-- `${backmeshUid}/proxies/${proxyId}/users/{uid}`
+`endusers/${backmeshUid}/${proxyId}/[]`
+
+- `endusers/${backmeshUid}/${proxyId}/{uid}`
 - can have cummulative summaries or indices down the line
 
- ### API Proxy per user request history
+### API Proxy per user request history
 
-`${backmeshUid}/proxies/${proxyId}/users/{uid}/requests[]`
-- `${backmeshUid}/proxies/${proxyId}/users/{uid}/requests/{epochTS}-{statusCode}`
+`reqs/${backmeshUid}/${proxyId}/{uid}/[]`
 
--->
+- `${backmeshUid}/${proxyId}/{uid}/{epochTS}-{statusCode}`
 
 ### API Proxy per user rate limit
 
-`${backmeshUid}/proxies/${proxyId}/users/{uid}/rateLimit[]`
+`limits/${backmeshUid}/${proxyId}/[]`
 
-- `${backmeshUid}/proxies/${proxyId}/users/{uid}/rateLimit/${windowstart}`
+- `${backmeshUid}/${proxyId}/{uid}-${windowstart}`
 
 ### API Proxy private resourecs
 
-`${backmeshUid}/proxies/${proxyId}/resource[]`
+`resources/${backmeshUid}/${proxyId}[]`
 
-- `${backmeshUid}/proxies/${proxyId}/resource/${resource.id}`
+- `resources/${backmeshUid}/${proxyId}/${resource.id}`

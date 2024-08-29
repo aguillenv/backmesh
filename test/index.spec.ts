@@ -923,6 +923,15 @@ describe('Firebase + OpenAI Proxy user access control for threads', async () => 
 		);
 		expect(response.status).toBe(200);
 	});
+	it('avoid key collision when listing proxies', async () => {
+		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
+			method: 'GET',
+			headers: {
+				Authorization: testUserJwt,
+			},
+		});
+		expect(response.status).toBe(200);
+	});
 });
 
 describe('Firebase + Gemini API Proxy Rate Limit', () => {
@@ -1064,5 +1073,15 @@ describe('Firebase + Gemini API Proxy Rate Limit', () => {
 			},
 		});
 		expect(response.status).toBe(400);
+	});
+
+	it('avoid key collision when listing proxies', async () => {
+		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
+			method: 'GET',
+			headers: {
+				Authorization: testUserJwt,
+			},
+		});
+		expect(response.status).toBe(200);
 	});
 });
