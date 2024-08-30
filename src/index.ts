@@ -60,7 +60,7 @@ export default {
 					: await proxy.fetch(respOrReq, env);
 			// log request without blocking response if request was valid
 			if (!(respOrReq instanceof Response))
-				ctx.waitUntil(posthog.captureProxyReq(respOrReq, resp.status));
+				ctx.waitUntil(posthog.captureProxyReq(respOrReq, resp.status, env));
 		}
 		if (resp === undefined) return new Response('Not Found', { status: 404 });
 		resp.headers.set('Access-Control-Allow-Origin', '*');

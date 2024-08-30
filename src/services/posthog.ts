@@ -1,7 +1,9 @@
 import { ProxyRequest } from '../proxy';
 
 export default {
-	async captureProxyReq(req: ProxyRequest, status: number) {
+	async captureProxyReq(req: ProxyRequest, status: number, env: any) {
+		// ignore if tests
+		if (env.TEST_USER_PASS !== undefined) return;
 		const { path, proxyId, backmeshUid, endUserId } = req;
 		const payload = {
 			api_key: 'phc_fZ3tyt5smshwvm17JYlrU8PbxUVlOoakvH2M5b6ktdO',
@@ -14,14 +16,12 @@ export default {
 				path,
 			},
 		};
-		const response = await fetch('https://app.posthog.com/capture/', {
+		await fetch('https://app.posthog.com/capture/', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify(payload),
 		});
-
-		return response;
 	},
 };
