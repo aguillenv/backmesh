@@ -12,6 +12,7 @@ export default {
 				distinct_id: backmeshUid,
 				end_user_id: endUserId,
 				proxy_id: proxyId,
+				method: req.request.method,
 				status,
 				path,
 			},

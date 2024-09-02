@@ -443,6 +443,21 @@ describe('Firebase + OpenAI API Proxy user access control for files', () => {
 			console.error('Response body:', await response.text());
 		expect(response.status).toBe(200);
 	});
+
+	it('1st user fails to get contents', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/files/${fileId2ndUser}/contents`,
+			{
+				method: 'GET',
+				headers: {
+					[reqHeader]: `Bearer ${testUser1stUserJwt}`,
+				},
+			},
+		);
+		if (response.status !== 403)
+			console.error('Response body:', await response.text());
+		expect(response.status).toBe(403);
+	});
 });
 
 describe('Firebase + Gemini API Proxy user access control for files', () => {
