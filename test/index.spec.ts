@@ -100,6 +100,16 @@ const openAIProxyInit = JSON.stringify({
 	rateLimitUnit: RateLimitUnit.MINUTE,
 	authType: AuthProviderType.FIREBASE,
 });
+const anthropicProxyInit = JSON.stringify({
+	apiUrl: 'https://api.anthropic.com',
+	apiReqHeader: 'x-api-key',
+	authPublicKey: testUserFirebaseKey,
+	apiPrivateKey: env.NIMBUS_ANTHROPIC_API_KEY,
+	authAppId: 'nimbus-d5268',
+	rateLimit: 20,
+	rateLimitUnit: RateLimitUnit.MINUTE,
+	authType: AuthProviderType.FIREBASE,
+});
 
 describe('Bad proxy requests', () => {
 	it('invalid proxy path', async () => {
@@ -1097,6 +1107,80 @@ describe('Firebase + Gemini API Proxy Rate Limit', () => {
 				Authorization: testUserJwt,
 			},
 		});
+		expect(response.status).toBe(200);
+	});
+});
+
+describe('Firebase + Anthropic API Proxy Basic usage', () => {
+	const messageBody = JSON.stringify({
+		model: 'claude-3-5-sonnet-20240620',
+		max_tokens: 1024,
+		messages: [{ role: 'user', content: 'Hello, world' }],
+	});
+	const completionBody = JSON.stringify({
+		model: 'claude-2.1',
+		max_tokens_to_sample: 1024,
+		prompt: '\n\nHuman: Hello, Claude\n\nAssistant:',
+	});
+	beforeAll(async () => {
+		response = await SELF.fetch(`https://example.com/v1/crud/${testUserId}`, {
+			method: 'POST',
+			headers: {
+				Authorization: testUserJwt,
+			},
+			body: anthropicProxyInit,
+		});
+		expect(response.status).toBe(200);
+		let data = (await response.json()) as ApiProxy;
+		expect(data.id.length).toBeGreaterThan(0);
+		expect(data.proxyUrl.length).toBeGreaterThan(0);
+		expect(data.apiPrivateKey === '').toBe(true);
+		proxyId = data.id;
+		reqHeader = JSON.parse(anthropicProxyInit)['apiReqHeader'];
+	});
+
+	afterAll(async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/crud/${testUserId}/${proxyId!}`,
+			{
+				method: 'DELETE',
+				headers: {
+					Authorization: testUserJwt,
+				},
+			},
+		);
+		expect(response.status).toBe(200);
+	});
+
+	it('completion endpoint', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/messages`,
+			{
+				method: 'POST',
+				headers: {
+					[reqHeader]: testUser1stUserJwt,
+					'anthropic-version': '2023-06-01',
+				},
+				body: messageBody,
+			},
+		);
+		if (response.status !== 200) console.error(await response.text());
+		expect(response.status).toBe(200);
+	});
+
+	it('message endpoint', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/complete`,
+			{
+				method: 'POST',
+				headers: {
+					[reqHeader]: testUser1stUserJwt,
+					'anthropic-version': '2023-06-01',
+				},
+				body: completionBody,
+			},
+		);
+		if (response.status !== 200) console.error(await response.text());
 		expect(response.status).toBe(200);
 	});
 });
