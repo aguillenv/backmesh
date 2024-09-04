@@ -77,6 +77,13 @@ export default {
 			}
 		}
 
+		if (fullApiUrl.startsWith('https://api.anthropic.com')) {
+			const allowedInitPaths = ['v1/complete', 'v1/messages'];
+			if (!allowedInitPaths.some((path) => pathName === path)) {
+				return new Response('Forbidden', { status: 403 });
+			}
+		}
+
 		// https://ai.google.dev/api/all-methods
 		if (fullApiUrl.startsWith('https://generativelanguage.googleapis.com')) {
 			const allowedInitPaths = [

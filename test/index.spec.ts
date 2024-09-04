@@ -1183,4 +1183,20 @@ describe('Firebase + Anthropic API Proxy Basic usage', () => {
 		if (response.status !== 200) console.error(await response.text());
 		expect(response.status).toBe(200);
 	});
+
+	it('forbid any endpoint outside of whitelist', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/completions`,
+			{
+				method: 'POST',
+				headers: {
+					[reqHeader]: testUser1stUserJwt,
+					'anthropic-version': '2023-06-01',
+				},
+				body: completionBody,
+			},
+		);
+		if (response.status !== 403) console.error(await response.text());
+		expect(response.status).toBe(403);
+	});
 });
