@@ -1,4 +1,5 @@
 import { decrypt, encrypt } from './crypto';
+import { KVNamespaceListResult } from '@cloudflare/workers-types';
 
 export enum AuthProviderType {
 	FIREBASE = 'Firebase',
@@ -138,6 +139,24 @@ async function del(env: Env, key: string) {
 	await env.BACKMESH_KV.delete(key);
 }
 
+async function listKeys(env: Env, prefix: string) {
+	const keysList = [];
+	let cursor: string | undefined = undefined;
+
+	do {
+		const res: KVNamespaceListResult<unknown> = await env.BACKMESH_KV.list({
+			prefix,
+			cursor,
+		});
+
+		keysList.push(...res.keys);
+
+		cursor = res.list_complete ? undefined : res.cursor;
+	} while (cursor);
+
+	return keysList;
+}
+
 function generateId(length: number = 20): string {
 	const array = new Uint8Array(length);
 	crypto.getRandomValues(array);
@@ -228,11 +247,9 @@ export default {
 	},
 
 	async getAllApiProxies(env: Env, backmeshUid: string): Promise<ApiProxy[]> {
-		const entries = await env.BACKMESH_KV.list({
-			prefix: getProxiesKey(backmeshUid),
-		});
+		const keys = await listKeys(env, getProxiesKey(backmeshUid));
 
-		const proxyPromises = entries.keys.map(async (key) => {
+		const proxyPromises = keys.map(async (key) => {
 			const proxy = await get<ApiProxy>(env, key.name);
 			assertApiProxy(proxy);
 			proxy.apiPrivateKey = '';
@@ -243,7 +260,6 @@ export default {
 	},
 
 	async delApiProxy(env: Env, backmeshUid: string, id: string) {
-		console.log('delApiProxy');
 		const key = getProxyKey(backmeshUid, id);
 		await del(env, key);
 	},
