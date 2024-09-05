@@ -1,25 +1,54 @@
 import auth, { AuthHeader } from './services/auth';
 import kv, { ApiProxy } from './services/kv';
 
-export type ProxyRequest = {
-	endUserId: string;
-	backmeshUid: string;
-	proxyId: string;
-	authHeader: AuthHeader;
-	request: Request;
-	apiProxy: ApiProxy;
-	path: string;
-};
+export class InvalidProxyRequest {
+	endUserId?: string;
+	backmeshUid?: string;
+	proxyId?: string;
+	authHeader?: AuthHeader;
+	apiProxy?: ApiProxy;
+	request!: Request;
+	path!: string;
+	response!: Response;
+
+	constructor(init: Partial<InvalidProxyRequest>) {
+		Object.assign(this, init);
+	}
+}
+
+export class ProxyRequest {
+	endUserId!: string;
+	backmeshUid!: string;
+	proxyId!: string;
+	authHeader!: AuthHeader;
+	request!: Request;
+	apiProxy!: ApiProxy;
+	path!: string;
+
+	constructor(init: ProxyRequest) {
+		Object.assign(this, init);
+	}
+}
 
 export default {
-	async validate(request: Request, env: Env): Promise<ProxyRequest | Response> {
+	async validate(
+		request: Request,
+		env: Env,
+	): Promise<InvalidProxyRequest | ProxyRequest> {
 		const requestUrl = new URL(request.url);
 		const parts = requestUrl.pathname.split('/').filter((part) => part);
+		const path = parts.slice(4).join('/');
 		// /v1/proxy/${backmeshUid}/${apiProxyName}/
 		const backmeshUid = parts.at(2);
 		const proxyId = parts.at(3);
 		if (!backmeshUid || !proxyId) {
-			return new Response('Invalid pathname', { status: 400 });
+			return new InvalidProxyRequest({
+				request,
+				proxyId,
+				backmeshUid,
+				path,
+				response: new Response('Invalid pathname', { status: 400 }),
+			});
 		}
 		let apiProxy;
 		try {
@@ -27,40 +56,61 @@ export default {
 		} catch (error: any) {
 			console.error(error);
 			const status = error instanceof TypeError ? 404 : 500;
-			return new Response(error.message ?? 'Unknown error', { status });
+			return new InvalidProxyRequest({
+				request,
+				proxyId,
+				backmeshUid,
+				path,
+				apiProxy,
+				response: new Response(error.message ?? 'Unknown error', { status }),
+			});
 		}
 		const authHeader = auth.getAuthHeader(request, apiProxy.apiReqHeader);
 		if (authHeader === null)
-			return new Response('Missing or invalid Authorization header', {
-				status: 401,
+			return new InvalidProxyRequest({
+				request,
+				proxyId,
+				backmeshUid,
+				path,
+				apiProxy,
+				response: new Response('Missing or invalid Authorization header', {
+					status: 401,
+				}),
 			});
 		const endUserId = await auth.getUidFromJwt(authHeader.extractedJwt, apiProxy);
-		if (endUserId === null) return new Response('Invalid token', { status: 401 });
-		return {
+		if (endUserId === null)
+			return new InvalidProxyRequest({
+				request,
+				proxyId,
+				backmeshUid,
+				path,
+				apiProxy,
+				authHeader,
+				response: new Response('Invalid token', { status: 401 }),
+			});
+		return new ProxyRequest({
 			apiProxy,
 			request,
 			authHeader,
 			proxyId,
 			backmeshUid,
 			endUserId,
-			path: parts.slice(4).join('/'),
-		};
+			path,
+		});
 	},
 	async fetch(proxyRequest: ProxyRequest, env: Env) {
-		const { apiProxy, request, authHeader, proxyId, backmeshUid, endUserId } =
+		const { apiProxy, request, authHeader, proxyId, backmeshUid, endUserId, path } =
 			proxyRequest;
 		const rateLimit = await kv.rateLimit(env, backmeshUid, apiProxy, endUserId);
 		if (rateLimit)
 			return new Response('Backmesh request limit exceeded', { status: 429 });
 		const requestUrl = new URL(request.url);
-		const parts = requestUrl.pathname.split('/').filter((part) => part);
-		const pathName = parts.slice(4).join('/');
 		let fullApiUrl =
-			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + pathName;
+			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + path;
 
 		// v1/assistants, v1/vector_stores and v1/fine_tuning can be added as private endpoints
 		// whitelist of routes supported until someone complains and then understand their use case
-		const pathParts = pathName.split('/');
+		const pathParts = path.split('/');
 		const route = pathParts[1];
 		if (fullApiUrl.startsWith('https://api.openai.com')) {
 			const allowedPaths = [
@@ -72,14 +122,14 @@ export default {
 				'files', // private ones
 				'threads', // private ones
 			];
-			if (!allowedPaths.some((path) => route === path)) {
+			if (!allowedPaths.some((p) => route === p)) {
 				return new Response('Forbidden', { status: 403 });
 			}
 		}
 
 		if (fullApiUrl.startsWith('https://api.anthropic.com')) {
 			const allowedInitPaths = ['v1/complete', 'v1/messages'];
-			if (!allowedInitPaths.some((path) => pathName === path)) {
+			if (!allowedInitPaths.some((p) => path === p)) {
 				return new Response('Forbidden', { status: 403 });
 			}
 		}
@@ -91,7 +141,7 @@ export default {
 				'upload/v1beta/files',
 				'v1beta/models',
 			];
-			if (!allowedInitPaths.some((path) => pathName.startsWith(path))) {
+			if (!allowedInitPaths.some((p) => path.startsWith(p))) {
 				return new Response('Forbidden', { status: 403 });
 			}
 		}
@@ -120,7 +170,7 @@ export default {
 		const { readable, writable } = new TransformStream();
 		if (fullApiUrl.startsWith('https://generativelanguage.googleapis.com')) {
 			if (
-				pathName === 'upload/v1beta/files' &&
+				path === 'upload/v1beta/files' &&
 				requestUrl.searchParams.has('upload_id')
 			) {
 				// parse response without consuming original
