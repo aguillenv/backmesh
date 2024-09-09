@@ -2,7 +2,12 @@ import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { firebaseUidFromJwt } from '../src/services/auth';
-import { ApiProxy, AuthProviderType, RateLimitUnit } from '../src/services/kv';
+import {
+	ApiProxy,
+	AuthProviderType,
+	EndUserAnalyticsSummary,
+	RateLimitUnit,
+} from '../src/services/kv';
 
 async function getTokenFromFirebaseKey(
 	publicFirebaseKey: string,
@@ -1152,7 +1157,23 @@ describe('Firebase + Anthropic API Proxy Basic usage', () => {
 		expect(response.status).toBe(200);
 	});
 
-	it('completion endpoint', async () => {
+	it('empty summary', async () => {
+		response = await SELF.fetch(
+			`https://example.com/v1/crud/${testUserId}/${proxyId!}/summary`,
+			{
+				method: 'GET',
+				headers: {
+					Authorization: testUserJwt,
+				},
+			},
+		);
+		if (response.status !== 200) console.error(await response.text());
+		expect(response.status).toBe(200);
+		const body: EndUserAnalyticsSummary[] = await response.json();
+		expect(body.length).toBe(0);
+	});
+
+	it('message endpoint', async () => {
 		response = await SELF.fetch(
 			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/messages`,
 			{
@@ -1166,22 +1187,22 @@ describe('Firebase + Anthropic API Proxy Basic usage', () => {
 		);
 		if (response.status !== 200) console.error(await response.text());
 		expect(response.status).toBe(200);
-	});
 
-	it('message endpoint', async () => {
+		// one user in summary
 		response = await SELF.fetch(
-			`https://example.com/v1/proxy/${testUserId}/${proxyId!}/v1/complete`,
+			`https://example.com/v1/crud/${testUserId}/${proxyId!}/summary`,
 			{
-				method: 'POST',
+				method: 'GET',
 				headers: {
-					[reqHeader]: testUser1stUserJwt,
-					'anthropic-version': '2023-06-01',
+					Authorization: testUserJwt,
 				},
-				body: completionBody,
 			},
 		);
 		if (response.status !== 200) console.error(await response.text());
 		expect(response.status).toBe(200);
+		const body: EndUserAnalyticsSummary[] = await response.json();
+		if (body.length !== 1) console.error(body);
+		expect(body.length).toBe(1);
 	});
 
 	it('forbid any endpoint outside of whitelist', async () => {

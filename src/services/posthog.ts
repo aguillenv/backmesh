@@ -1,4 +1,4 @@
-import { InvalidProxyRequest, ProxyRequest } from '../proxy';
+import { InvalidProxyRequest, ProxyRequest, ProxyResponse } from '../proxy';
 
 async function captureEvent(name: string, properties: any) {
 	const payload = {
@@ -18,7 +18,7 @@ async function captureEvent(name: string, properties: any) {
 export default {
 	async captureProxyReq(
 		req: ProxyRequest | InvalidProxyRequest,
-		resp: Response,
+		res: ProxyResponse,
 		timing: number,
 		env: any,
 	) {
@@ -30,7 +30,7 @@ export default {
 			end_user_id: endUserId,
 			proxy_id: proxyId,
 			method: req.request.method,
-			status: resp.status,
+			status: res.response.status,
 			timing,
 			path,
 		});

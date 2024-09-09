@@ -1,5 +1,6 @@
 import auth, { AuthHeader } from './services/auth';
 import kv, { ApiProxy } from './services/kv';
+import posthog from './services/posthog';
 
 export class InvalidProxyRequest {
 	endUserId?: string;
@@ -28,6 +29,57 @@ export class ProxyRequest {
 	constructor(init: ProxyRequest) {
 		Object.assign(this, init);
 	}
+}
+
+export class ProxyResponse {
+	response!: Response;
+	parsedBody?: any;
+	usage?: LLMUsage;
+
+	constructor(init: ProxyResponse) {
+		Object.assign(this, init);
+	}
+}
+
+export type LLMUsage = {
+	model: string;
+	inputTokens: number;
+	outputTokens?: number; // missing for embedding models
+};
+
+async function getLLMUsage(
+	req: ProxyRequest,
+	parsedBody: any,
+): Promise<LLMUsage | undefined> {
+	try {
+		if (parsedBody.usage && req.apiProxy.apiUrl === 'https://api.openai.com') {
+			return {
+				inputTokens: parsedBody.usage.prompt_tokens,
+				outputTokens: parsedBody.usage.completion_tokens,
+				model: parsedBody.model,
+			};
+		} else if (
+			parsedBody.usage &&
+			req.apiProxy.apiUrl === 'https://api.anthropic.com'
+		) {
+			return {
+				inputTokens: parsedBody.usage.input_tokens,
+				outputTokens: parsedBody.usage.output_tokens,
+				model: parsedBody.model,
+			};
+		} else if (
+			parsedBody.usageMetadata &&
+			req.apiProxy.apiUrl === 'https://generativelanguage.googleapis.com'
+		) {
+			return {
+				inputTokens: parsedBody.usageMetadata.promptTokenCount,
+				// inputCachedTokens: parsedBody.usageMetadata.cachedContentTokenCount,
+				outputTokens: parsedBody.usageMetadata.candidatesTokenCount,
+				// "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GOOGLE_API_KEY"
+				model: req.path.split('/').pop()!.split(':').shift()!,
+			};
+		}
+	} catch (e) {}
 }
 
 export default {
@@ -98,12 +150,19 @@ export default {
 			path,
 		});
 	},
-	async fetch(proxyRequest: ProxyRequest, env: Env) {
+	async fetch(
+		proxyRequest: ProxyRequest | InvalidProxyRequest,
+		env: Env,
+	): Promise<ProxyResponse> {
+		if (proxyRequest instanceof InvalidProxyRequest)
+			return { response: proxyRequest.response };
 		const { apiProxy, request, authHeader, proxyId, backmeshUid, endUserId, path } =
 			proxyRequest;
 		const rateLimit = await kv.rateLimit(env, backmeshUid, apiProxy, endUserId);
 		if (rateLimit)
-			return new Response('Backmesh request limit exceeded', { status: 429 });
+			return {
+				response: new Response('Backmesh request limit exceeded', { status: 429 }),
+			};
 		const requestUrl = new URL(request.url);
 		let fullApiUrl =
 			apiProxy.apiUrl + (apiProxy.apiUrl.endsWith('/') ? '' : '/') + path;
@@ -123,14 +182,14 @@ export default {
 				'threads', // private ones
 			];
 			if (!allowedPaths.some((p) => route === p)) {
-				return new Response('Forbidden', { status: 403 });
+				return { response: new Response('Forbidden', { status: 403 }) };
 			}
 		}
 
 		if (fullApiUrl.startsWith('https://api.anthropic.com')) {
-			const allowedInitPaths = ['v1/complete', 'v1/messages'];
+			const allowedInitPaths = ['v1/messages'];
 			if (!allowedInitPaths.some((p) => path === p)) {
-				return new Response('Forbidden', { status: 403 });
+				return { response: new Response('Forbidden', { status: 403 }) };
 			}
 		}
 
@@ -142,7 +201,7 @@ export default {
 				'v1beta/models',
 			];
 			if (!allowedInitPaths.some((p) => path.startsWith(p))) {
-				return new Response('Forbidden', { status: 403 });
+				return { response: new Response('Forbidden', { status: 403 }) };
 			}
 		}
 
@@ -160,12 +219,13 @@ export default {
 			headers: auth.newProxyHeaders(request, authHeader, apiProxy.apiPrivateKey),
 		};
 
+		// we can't fire request here because file deletions might be forbidden later on
+		let response, parsedBody: any;
+
 		// GET and HEAD requests do not have a body
 		if (request.body) {
 			init.body = await request.clone().text();
 		}
-
-		let response = null;
 
 		const { readable, writable } = new TransformStream();
 		if (fullApiUrl.startsWith('https://generativelanguage.googleapis.com')) {
@@ -175,8 +235,8 @@ export default {
 			) {
 				// parse response without consuming original
 				response = await fetch(fullApiUrl, init);
-				const jsonResponse: any = await response.clone().json();
-				const file = jsonResponse.file;
+				parsedBody = await response.clone().json();
+				const file = parsedBody.file;
 
 				await kv.newUserResource(env, {
 					backmeshUid,
@@ -194,17 +254,18 @@ export default {
 					endUserId,
 					resourceId,
 				});
-				if (!isOwner) return new Response('Forbidden', { status: 403 });
+				if (!isOwner)
+					return { response: new Response('Forbidden', { status: 403 }) };
 				// GET v1/files lists all files
 				// parse response, grab id and set in KV
 			} else if (pathParts.length === 2 && route === 'files') {
 				// parse response and filter files that do not belong to this user
 				// assumes JSON
 				response = await fetch(fullApiUrl, init);
-				const jsonResponse: any = await response.clone().json();
+				parsedBody = await response.clone().json();
 				// TODO handle pagination
 				const filteredFiles = await Promise.all(
-					(jsonResponse.files as any[]).map(async (file) => {
+					(parsedBody.files as any[]).map(async (file) => {
 						const isOwner = await kv.isUserResource(env, {
 							backmeshUid,
 							proxyId: apiProxy.id,
@@ -215,7 +276,7 @@ export default {
 					}),
 				).then((results) => results.filter((file) => file !== null));
 				const reconstructedResponse = {
-					...jsonResponse,
+					...parsedBody,
 					files: filteredFiles,
 				};
 				const writer = writable.getWriter();
@@ -224,7 +285,7 @@ export default {
 				);
 				writer.close();
 
-				return new Response(readable, response);
+				return { response: new Response(readable, response), parsedBody };
 			}
 		}
 
@@ -234,8 +295,8 @@ export default {
 				if (request.method === 'POST') {
 					// parse response without consuming original
 					response = await fetch(fullApiUrl, init);
-					const jsonResponse: any = await response.clone().json();
-					const resourceId = jsonResponse.id;
+					const parsedBody: any = await response.clone().json();
+					const resourceId = parsedBody.id;
 					await kv.newUserResource(env, {
 						backmeshUid,
 						proxyId,
@@ -261,7 +322,8 @@ export default {
 						endUserId,
 						resourceId,
 					});
-					if (!isOwner) return new Response('Forbidden', { status: 403 });
+					if (!isOwner)
+						return { response: new Response('Forbidden', { status: 403 }) };
 					// GET v1/files lists all files
 					// parse response, grab id and set in KV
 				} else if (
@@ -272,9 +334,9 @@ export default {
 					// parse response and filter files that do not belong to this user
 					// assumes JSON
 					response = await fetch(fullApiUrl, init);
-					const jsonResponse: any = await response.clone().json();
+					const parsedBody: any = await response.clone().json();
 					const filteredData = await Promise.all(
-						(jsonResponse.data as any[]).map(async (file) => {
+						(parsedBody.data as any[]).map(async (file) => {
 							const isOwner = await kv.isUserResource(env, {
 								backmeshUid,
 								proxyId,
@@ -285,7 +347,7 @@ export default {
 						}),
 					).then((results) => results.filter((file) => file !== null));
 					const reconstructedResponse = {
-						...jsonResponse,
+						...parsedBody,
 						data: filteredData,
 					};
 					const writer = writable.getWriter();
@@ -294,7 +356,10 @@ export default {
 					);
 					writer.close();
 
-					return new Response(readable, response);
+					return {
+						response: new Response(readable, response),
+						parsedBody,
+					};
 				}
 			}
 		}
@@ -304,12 +369,33 @@ export default {
 		}
 
 		if (!response.body) {
-			return new Response('No body in response', { status: 500 });
+			return { response: new Response('No body in response', { status: 500 }) };
 		}
+
+		const contentType = response.headers.get('Content-Type');
+		if (!parsedBody && contentType && contentType.includes('application/json')) {
+			parsedBody = await response.clone().json();
+		}
+
 		// Start pumping the body. NOTE: No await!
 		response.body.pipeTo(writable);
 
 		// ... and deliver our Response while that’s running.
-		return new Response(readable, response);
+		return {
+			parsedBody,
+			response: new Response(readable, response),
+			usage: await getLLMUsage(proxyRequest, parsedBody),
+		};
+	},
+	async postprocessing(
+		proxyReq: ProxyRequest | InvalidProxyRequest,
+		proxyRes: ProxyResponse,
+		ts: number,
+		timing: number,
+		env: Env,
+	) {
+		if (proxyReq instanceof ProxyRequest)
+			await kv.newProxyExchange(env, proxyReq, ts, timing, proxyRes);
+		await posthog.captureProxyReq(proxyReq, proxyRes, timing, env);
 	},
 };

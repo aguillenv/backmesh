@@ -1,3 +1,9 @@
+import {
+	InvalidProxyRequest,
+	LLMUsage,
+	ProxyRequest,
+	ProxyResponse,
+} from '../proxy';
 import { decrypt, encrypt } from './crypto';
 import { KVNamespaceListResult } from '@cloudflare/workers-types';
 
@@ -30,6 +36,55 @@ function getRateLimitUnitInSecs(unit: RateLimitUnit): number {
 		default:
 			throw new Error('Invalid RateLimitUnit');
 	}
+}
+
+export type ProxyExchange = {
+	url: string;
+	reqHeaders: [key: string, value: string][];
+	reqBody?: string;
+	resHeaders: [key: string, value: string][];
+	resBody: any;
+};
+
+// derived from key
+export type EndUserAnalyticsSummary = {
+	endUserId: string;
+	reqCount: number;
+	errorCount: number;
+	totalCost: number;
+	totalTiming: number;
+	firstTs: number;
+	lastTs: number;
+	// TODO return model count distribution maybe
+};
+
+// Type guard to check if an object is of type EndUserAnalyticsSummary at runtime
+function assertEndUserAnalyticsSummary(obj: any): obj is EndUserAnalyticsSummary {
+	if (typeof obj !== 'object' || obj === null) {
+		throw new TypeError('Object is not valid');
+	}
+	if (typeof obj.reqCount !== 'number') {
+		throw new TypeError('reqCount is not a number');
+	}
+	if (typeof obj.errorCount !== 'number') {
+		throw new TypeError('errorCount is not a number');
+	}
+	if (typeof obj.totalCost !== 'number') {
+		throw new TypeError('totalCost is not a number');
+	}
+	if (typeof obj.totalTiming !== 'number') {
+		throw new TypeError('totalTiming is not a number');
+	}
+	if (typeof obj.firstTs !== 'number') {
+		throw new TypeError('firstTs is not a number');
+	}
+	if (typeof obj.lastTs !== 'number') {
+		throw new TypeError('lastTs is not a number');
+	}
+	if (typeof obj.endUserId !== 'string') {
+		throw new TypeError('endUserId is not a number');
+	}
+	return true;
 }
 
 // TODO use URLs to validate here or in front
@@ -153,7 +208,6 @@ async function listKeys(env: Env, prefix: string) {
 
 		cursor = res.list_complete ? undefined : res.cursor;
 	} while (cursor);
-
 	return keysList;
 }
 
@@ -168,8 +222,78 @@ function isValidStr(testStr: string) {
 	return typeof testStr === 'string' && testStr.trim() !== '';
 }
 
+// TODO how to update programmatically
+const modelCostsPerMillion: {
+	[key: string]: {
+		input: number;
+		output?: number;
+		threshold?: number;
+		postThresholdInput?: number;
+		postThresholdOutput?: number;
+	};
+} = {
+	// openai
+	'gpt-4o': { input: 5, output: 15 },
+	'gpt-4o-2024-08-06': { input: 2.5, output: 10 },
+	'gpt-4o-2024-05-13': { input: 5, output: 15 },
+	'gpt-4o-mini': { input: 0.15, output: 0.6 },
+	'gpt-4o-mini-2024-07-18': { input: 0.15, output: 0.6 },
+	'text-embedding-3-small': { input: 0.02 },
+	'text-embedding-3-large': { input: 0.13 },
+	'text-embedding-ada-002': { input: 0.1 },
+	// anthropic
+	'claude-3-5-sonnet-20240620': { input: 3, output: 3.75 },
+	'claude-3-opus-20240229': { input: 15, output: 75 },
+	'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
+	// gemini
+	'gemini-1.5-flash': {
+		input: 0.075,
+		output: 0.3,
+		threshold: 128_000,
+		postThresholdInput: 0.15,
+		postThresholdOutput: 0.6,
+	},
+	'gemini-1.5-pro': {
+		input: 3.5,
+		output: 10.5,
+		threshold: 128_000,
+		postThresholdInput: 7,
+		postThresholdOutput: 21,
+	},
+	'gemini-1.0-pro': {
+		input: 0.5,
+		output: 1.5,
+	},
+};
+
+// this is best effort so it fallsback to 0 cost
+// does not support caching, fine tuned models, image and audio models
+function estimateCost(usage: LLMUsage): number {
+	const model = usage.model.toLowerCase();
+	const costs = modelCostsPerMillion[model] || { input: 0, output: 0 };
+
+	let cost = 0;
+
+	if (costs.threshold && usage.inputTokens > costs.threshold) {
+		cost +=
+			(usage.inputTokens * (costs.postThresholdInput || costs.input)) / 1_000_000;
+		if (usage.outputTokens) {
+			cost +=
+				(usage.outputTokens * (costs.postThresholdOutput || costs.output || 0)) /
+				1_000_000;
+		}
+	} else {
+		cost += (usage.inputTokens * costs.input) / 1_000_000;
+		if (usage.outputTokens) {
+			cost += (usage.outputTokens * (costs.output || 0)) / 1_000_000;
+		}
+	}
+
+	return cost;
+}
+
 function getProxyKey(backmeshUid: string, id: string) {
-	return `proxies/${backmeshUid}/${id}`;
+	return `${getProxiesKey(backmeshUid)}${id}`;
 }
 
 function getProxiesKey(backmeshUid: string) {
@@ -179,13 +303,13 @@ function getProxiesKey(backmeshUid: string) {
 function getRateLimitKey(
 	backmeshUid: string,
 	proxyId: string,
-	uid: string,
+	endUserId: string,
 	windowStart: number,
 ) {
-	return `limits/${backmeshUid}/${proxyId}/${uid}-${windowStart}`;
+	return `limits/${backmeshUid}/${proxyId}/${endUserId}-${windowStart}`;
 }
 
-// value is a string uid that owns this resource
+// value is a string endUserId that owns this resource
 function getPrivateResourceKey(
 	backmeshUid: string,
 	proxyId: string,
@@ -194,7 +318,139 @@ function getPrivateResourceKey(
 	return `resources/${backmeshUid}/${proxyId}/${resourceId}`;
 }
 
+class ProxyExchangeSummary {
+	ts: number;
+	status: number;
+	timing: number;
+	model?: string;
+	cost?: number;
+
+	constructor({
+		ts,
+		status,
+		timing,
+		model,
+		cost,
+	}: {
+		ts: number;
+		status: number;
+		timing: number;
+		model?: string;
+		cost?: number;
+	}) {
+		this.model = model;
+		this.timing = timing;
+		this.ts = ts;
+		this.cost = cost;
+		this.status = status;
+	}
+
+	static parseKey(key: string): {
+		kSumm: ProxyExchangeSummary;
+		endUserId: string;
+	} {
+		const keyParts = key.split('/');
+		/*
+		[
+			'reqs',
+			'gbBbHCDBxqb8zwMk6dCio63jhOP2',
+			'FrdhHumtd5UmeeZ3xR3L',
+			'L8krqnkRWPXcxjoocPrQh33xTmD3',
+			'1725915390445|200|1364|claude-3-5-sonnet-20240620|0.00016125'
+		]
+		*/
+		const endUserId = keyParts[keyParts.length - 2];
+		const [ts, status, timing, model, cost] =
+			keyParts[keyParts.length - 1].split('|');
+		return {
+			endUserId,
+			kSumm: new ProxyExchangeSummary({
+				model,
+				timing: Number(timing),
+				ts: Number(ts),
+				cost: Number(cost),
+				status: Number(status),
+			}),
+		};
+	}
+
+	newKey(backmeshUid: string, proxyId: string, endUserId: string): string {
+		let key = `${getProxyExchangesKey(backmeshUid, proxyId)}${endUserId}/${
+			this.ts
+		}|${this.status}|${this.timing}`;
+		return `${key}|${this.model}|${this.cost}`;
+	}
+}
+
+function getProxyExchangesKey(backmeshUid: string, proxyId: string) {
+	return `reqs/${backmeshUid}/${proxyId}/`;
+}
+
 export default {
+	async newProxyExchange(
+		env: Env,
+		proxyReq: ProxyRequest | InvalidProxyRequest,
+		ts: number,
+		timing: number,
+		proxyRes: ProxyResponse,
+	) {
+		const { backmeshUid, proxyId, endUserId, request } = proxyReq;
+		if (!backmeshUid || !proxyId || !endUserId) return;
+		const usage = proxyRes.usage;
+		const model = usage ? usage.model : undefined;
+		const cost = usage ? estimateCost(usage) : undefined;
+		const summary = new ProxyExchangeSummary({
+			status: proxyRes.response.status,
+			ts,
+			timing,
+			cost,
+			model,
+		});
+		const key = summary.newKey(backmeshUid, proxyId, endUserId);
+		await create<ProxyExchange>(env, key, {
+			url: request.url,
+			reqHeaders: Array.from(request.headers.entries()),
+			reqBody: request.body ? await request.clone().text() : undefined,
+			resBody: proxyRes.parsedBody,
+			resHeaders: Array.from(proxyRes.response.headers.entries()),
+		});
+	},
+	async getProxyExchangeSummaries(
+		env: Env,
+		backmeshUid: string,
+		proxyId: string,
+	): Promise<EndUserAnalyticsSummary[]> {
+		const prefix = getProxyExchangesKey(backmeshUid, proxyId);
+		const keys = await listKeys(env, prefix);
+		const summaries: { [endUserId: string]: EndUserAnalyticsSummary } = {};
+
+		for (const key of keys) {
+			const { kSumm, endUserId } = ProxyExchangeSummary.parseKey(key.name);
+
+			if (!summaries[endUserId]) {
+				summaries[endUserId] = {
+					endUserId,
+					reqCount: 0,
+					errorCount: 0,
+					totalCost: 0,
+					totalTiming: 0,
+					firstTs: Number(kSumm.ts),
+					lastTs: Number(kSumm.ts),
+				};
+			}
+
+			const summary = summaries[endUserId];
+			summary.reqCount += 1;
+			summary.errorCount += Number(kSumm.status) >= 400 ? 1 : 0;
+			summary.totalCost += Number(kSumm.cost);
+			summary.totalTiming += Number(kSumm.timing);
+			summary.firstTs = Math.min(summary.firstTs, Number(kSumm.ts));
+			summary.lastTs = Math.max(summary.lastTs, Number(kSumm.ts));
+
+			assertEndUserAnalyticsSummary(summary);
+		}
+		return Object.values(summaries);
+	},
 	async newApiProxy(env: Env, backmeshUid: string, value: any): Promise<ApiProxy> {
 		const id = generateId();
 		value.id = id;
@@ -213,7 +469,7 @@ export default {
 	async editApiProxy(
 		env: Env,
 		backmeshUid: string,
-		id: string,
+		proxyId: string,
 		value: any,
 	): Promise<ApiProxy> {
 		assertApiProxy(value);
@@ -221,7 +477,7 @@ export default {
 		if (isValidStr(value.apiPrivateKey)) {
 			value.apiPrivateKey = await encrypt(value.apiPrivateKey, env.PASSWORD);
 		}
-		await edit<ApiProxy>(env, getProxyKey(backmeshUid, id), value, [
+		await edit<ApiProxy>(env, getProxyKey(backmeshUid, proxyId), value, [
 			'id',
 			'proxyUrl',
 		]);

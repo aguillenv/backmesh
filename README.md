@@ -53,13 +53,13 @@ Cloudflare KV is the main data store. Version schemas to avoid insidious bugs do
 
 `reqs/${backmeshUid}/${proxyId}/{uid}/[]`
 
-- `${backmeshUid}/${proxyId}/{uid}/{epochTS}|${model}|${tokens}|${responseTime}`
+- `reqs/${backmeshUid}/${proxyId}/{uid}/{ts}|${model}|${tokens}|${timing}`
 
 ### API Proxy per user rate limit
 
 `limits/${backmeshUid}/${proxyId}/[]`
 
-- `${backmeshUid}/${proxyId}/{uid}-${windowstart}`
+- `limits/${backmeshUid}/${proxyId}/{uid}-${windowstart}`
 
 ### API Proxy private resourecs
 
