@@ -1169,8 +1169,9 @@ describe('Firebase + Anthropic API Proxy Basic usage', () => {
 		);
 		if (response.status !== 200) console.error(await response.text());
 		expect(response.status).toBe(200);
-		const body: EndUserAnalyticsSummary[] = await response.json();
-		expect(body.length).toBe(0);
+		const body: { [endUserId: string]: EndUserAnalyticsSummary } =
+			await response.json();
+		expect(Object.keys(body).length).toBe(0);
 	});
 
 	it('message endpoint', async () => {
@@ -1200,9 +1201,9 @@ describe('Firebase + Anthropic API Proxy Basic usage', () => {
 		);
 		if (response.status !== 200) console.error(await response.text());
 		expect(response.status).toBe(200);
-		const body: EndUserAnalyticsSummary[] = await response.json();
-		if (body.length !== 1) console.error(body);
-		expect(body.length).toBe(1);
+		const body: { [endUserId: string]: EndUserAnalyticsSummary } =
+			await response.json();
+		expect(Object.keys(body).length).toBe(1);
 	});
 
 	it('forbid any endpoint outside of whitelist', async () => {
