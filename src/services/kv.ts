@@ -419,7 +419,7 @@ export default {
 		env: Env,
 		backmeshUid: string,
 		proxyId: string,
-	): Promise<{ [endUserId: string]: EndUserAnalyticsSummary }> {
+	): Promise<EndUserAnalyticsSummary[]> {
 		const prefix = getProxyExchangesKey(backmeshUid, proxyId);
 		const keys = await listKeys(env, prefix);
 		const summaries: { [endUserId: string]: EndUserAnalyticsSummary } = {};
@@ -449,7 +449,7 @@ export default {
 
 			assertEndUserAnalyticsSummary(summary);
 		}
-		return summaries;
+		return Object.values(summaries);
 	},
 	async newApiProxy(env: Env, backmeshUid: string, value: any): Promise<ApiProxy> {
 		const id = generateId();
