@@ -442,7 +442,7 @@ export default {
 			const summary = summaries[endUserId];
 			summary.reqCount += 1;
 			summary.errorCount += Number(kSumm.status) >= 400 ? 1 : 0;
-			summary.totalCost += Number(kSumm.cost);
+			summary.totalCost += kSumm.cost ? Number(kSumm.cost) : 0;
 			summary.totalTiming += Number(kSumm.timing);
 			summary.firstTs = Math.min(summary.firstTs, Number(kSumm.ts));
 			summary.lastTs = Math.max(summary.lastTs, Number(kSumm.ts));

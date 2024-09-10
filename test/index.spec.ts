@@ -60,7 +60,7 @@ describe('Firebase Authentication UID <=> JWT Mapper', () => {
 
 // andnimbus has 2 users calling the proxy
 const testUser1stUserEmail = 'lfdepombo+nimbus@gmail.com';
-// const testUser1stUserId = 'L8krqnkRWPXcxjoocPrQh33xTmD3';
+const testUser1stUserId = 'L8krqnkRWPXcxjoocPrQh33xTmD3';
 const testUser1stUserJwt = await getTokenFromFirebaseKey(
 	testUserFirebaseKey,
 	testUser1stUserEmail,
@@ -69,7 +69,7 @@ const testUser1stUserJwt = await getTokenFromFirebaseKey(
 console.log(testUser1stUserJwt);
 
 const testUser2ndUserEmail = 'lfdepombo+nimbus2@gmail.com';
-// const testUser2ndUserId = 'GTUe0voWDiSerEk9iJvv3q9W9Ur1';
+const testUser2ndUserId = 'GTUe0voWDiSerEk9iJvv3q9W9Ur1';
 const testUser2ndUserJwt = await getTokenFromFirebaseKey(
 	testUserFirebaseKey,
 	testUser2ndUserEmail,
@@ -1203,6 +1203,13 @@ describe('Firebase + Anthropic API Proxy Basic usage', () => {
 		const body: EndUserAnalyticsSummary[] = await response.json();
 		if (body.length !== 1) console.error(body);
 		expect(body.length).toBe(1);
+		expect(body[0].endUserId).toBe(testUser1stUserId);
+		expect(body[0].totalCost).toBeGreaterThan(0);
+		expect(body[0].totalTiming).toBeGreaterThan(0);
+		expect(body[0].errorCount).toBe(0);
+		expect(body[0].reqCount).toBe(1);
+		expect(body[0].firstTs).toBeGreaterThan(0);
+		expect(body[0].lastTs).toBe(body[0].lastTs);
 	});
 
 	it('forbid any endpoint outside of whitelist', async () => {
