@@ -2,12 +2,10 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 import { supabaseUidFromJwt } from '../src/services/auth';
 
-// codemaestro project
-const supabaseUrl = 'https://naxywnoolzuwzkinwekg.supabase.co';
-const supabaseKey =
-	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5heHl3bm9vbHp1d3praW53ZWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDY1MTE5NzIsImV4cCI6MjAyMjA4Nzk3Mn0.r5v1avlzdn-_2dDXhVgzFcMwv9YlMN_MXH9Q3NUHXcg';
-const testUserEmail = 'lfdepombo+codemaestro@gmail.com';
-const testUserId = 'a1029f16-0aae-4d3b-a33d-74263182c7dd';
+const supabaseUrl = env.SUPABASE_TEST_USER_URL;
+const supabaseKey = env.SUPABASE_TEST_USER_KEY;
+const testUserEmail = env.SUPABASE_TEST_USER_USER_EMAIL;
+const testUserId = env.SUPABASE_TEST_USER_USER_ID;
 
 async function getTokenFromSupabase(
 	email: string,
@@ -40,7 +38,6 @@ describe('supabase', () => {
 		const testUserJwt = await getTokenFromSupabase(
 			testUserEmail,
 			env.TEST_USER_PASS,
-			supabaseKey,
 		);
 
 		const uid = await supabaseUidFromJwt(testUserJwt, supabaseKey, supabaseUrl);

@@ -39,12 +39,12 @@ async function getTokenFromFirebaseKey(
 	return data.idToken;
 }
 
-const backmeshFirebaseKey = 'AIzaSyBHz11i2YIYtMkKdLpj3QiiKD8UguTKyRo';
-
-// nimbus is the backmesh test user
-const testUserId = 'gbBbHCDBxqb8zwMk6dCio63jhOP2';
-const testUserEmail = 'lfdepombo+backmesh@gmail.com';
-const testUserFirebaseKey = 'AIzaSyBc8gRnTgkaiHq9LEyncmwvyU2YJ7EyBJE';
+const backmeshFirebaseKey = env.BACKMESH_FIREBASE_KEY;
+// backmesh test user
+const testUserAppId = env.FIREBASE_TEST_USER_APP_ID;
+const testUserId = env.FIREBASE_TEST_USER_ID;
+const testUserEmail = env.FIREBASE_TEST_USER_EMAIL;
+const testUserFirebaseKey = env.FIREBASE_TEST_USER_KEY;
 const testUserJwt = await getTokenFromFirebaseKey(
 	backmeshFirebaseKey,
 	testUserEmail,
@@ -58,9 +58,9 @@ describe('Firebase Authentication UID <=> JWT Mapper', () => {
 	});
 });
 
-// andnimbus has 2 users calling the proxy
-const testUser1stUserEmail = 'lfdepombo+nimbus@gmail.com';
-const testUser1stUserId = 'L8krqnkRWPXcxjoocPrQh33xTmD3';
+// backmesh user has 2 users calling the proxy
+const testUser1stUserEmail = env.FIREBASE_TEST_USER_USER_1_EMAIL;
+const testUser1stUserId =  env.FIREBASE_TEST_USER_USER_1_ID;
 const testUser1stUserJwt = await getTokenFromFirebaseKey(
 	testUserFirebaseKey,
 	testUser1stUserEmail,
@@ -68,8 +68,8 @@ const testUser1stUserJwt = await getTokenFromFirebaseKey(
 );
 console.log(testUser1stUserJwt);
 
-const testUser2ndUserEmail = 'lfdepombo+nimbus2@gmail.com';
-const testUser2ndUserId = 'GTUe0voWDiSerEk9iJvv3q9W9Ur1';
+const testUser2ndUserEmail = env.FIREBASE_TEST_USER_USER_2_EMAIL;
+const testUser2ndUserId = env.FIREBASE_TEST_USER_USER_2_ID;
 const testUser2ndUserJwt = await getTokenFromFirebaseKey(
 	testUserFirebaseKey,
 	testUser2ndUserEmail,
@@ -80,18 +80,18 @@ const invalidProxyInit = JSON.stringify({
 	apiUrl: 'https://generativelanguage.googleapis.com',
 	apiReqHeader: 'x-goog-api-key',
 	authPublicKey: testUserFirebaseKey,
-	authAppId: 'nimbus-d5268',
+	authAppId: testUserAppId,
 	rateLimit: 2,
 	rateLimitUnit: RateLimitUnit.MINUTE,
 	authType: AuthProviderType.FIREBASE,
 });
 const rateLimitProxyInit = JSON.stringify({
 	...JSON.parse(invalidProxyInit),
-	apiPrivateKey: env.NIMBUS_GEMINI_API_KEY,
+	apiPrivateKey: env.TEST_USER_GEMINI_API_KEY,
 });
 const geminiProxyInit = JSON.stringify({
 	...JSON.parse(invalidProxyInit),
-	apiPrivateKey: env.NIMBUS_GEMINI_API_KEY,
+	apiPrivateKey: env.TEST_USER_GEMINI_API_KEY,
 	rateLimit: 20,
 });
 // TODO use supabase to test both
@@ -99,8 +99,8 @@ const openAIProxyInit = JSON.stringify({
 	apiUrl: 'https://api.openai.com',
 	apiReqHeader: 'Authorization',
 	authPublicKey: testUserFirebaseKey,
-	apiPrivateKey: env.NIMBUS_OPENAI_API_KEY,
-	authAppId: 'nimbus-d5268',
+	apiPrivateKey: env.TEST_USER_OPENAI_API_KEY,
+	authAppId: testUserAppId,
 	rateLimit: 20,
 	rateLimitUnit: RateLimitUnit.MINUTE,
 	authType: AuthProviderType.FIREBASE,
@@ -109,8 +109,8 @@ const anthropicProxyInit = JSON.stringify({
 	apiUrl: 'https://api.anthropic.com',
 	apiReqHeader: 'x-api-key',
 	authPublicKey: testUserFirebaseKey,
-	apiPrivateKey: env.NIMBUS_ANTHROPIC_API_KEY,
-	authAppId: 'nimbus-d5268',
+	apiPrivateKey: env.TEST_USER_ANTHROPIC_API_KEY,
+	authAppId: testUserAppId,
 	rateLimit: 20,
 	rateLimitUnit: RateLimitUnit.MINUTE,
 	authType: AuthProviderType.FIREBASE,
@@ -221,10 +221,15 @@ describe('Firebase + OpenAI API Proxy: user access control for files', () => {
 
 		const body = (() => {
 			const formData = new FormData();
+    // Create proper JSONL content with training examples
+			const jsonlContent = [
+				JSON.stringify({"messages": [{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi! How can I help you today?"}]}),
+				JSON.stringify({"messages": [{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "What's the weather?"}, {"role": "assistant", "content": "I don't have access to current weather information. You would need to check a weather service or app for that information."}]})
+			].join('\n');
 			formData.append(
 				'file',
-				new Blob(['example content'], { type: 'text/plain' }),
-				'example.txt',
+				new Blob([jsonlContent], { type: 'application/x-ndjson' }),
+				'example.jsonl'
 			);
 			formData.append('purpose', 'fine-tune');
 			return formData;

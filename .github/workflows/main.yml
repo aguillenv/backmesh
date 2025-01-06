@@ -18,10 +18,30 @@ jobs:
 
       - name: Setup environment variables
         run: |
-          echo "TEST_USER_PASS=${{ secrets.TEST_USER_PASS }}" >> .dev.vars
-          echo "NIMBUS_GEMINI_API_KEY=${{ secrets.NIMBUS_GEMINI_API_KEY }}" >> .dev.vars
-          echo "NIMBUS_OPENAI_API_KEY=${{ secrets.NIMBUS_OPENAI_API_KEY }}" >> .dev.vars
-          echo "NIMBUS_ANTHROPIC_API_KEY=${{ secrets.NIMBUS_ANTHROPIC_API_KEY }}" >> .dev.vars
+          touch .dev.vars
+          chmod 0600 .dev.vars
+          cat > .dev.vars << EOL
+          TEST_USER_PASS=${{ secrets.TEST_USER_PASS }}
+          TEST_USER_GEMINI_API_KEY=${{ secrets.TEST_USER_GEMINI_API_KEY }}
+          TEST_USER_OPENAI_API_KEY=${{ secrets.TEST_USER_OPENAI_API_KEY }}
+          TEST_USER_ANTHROPIC_API_KEY=${{ secrets.TEST_USER_ANTHROPIC_API_KEY }}
+          # supabase vars
+          SUPABASE_TEST_USER_URL=${{ vars.SUPABASE_TEST_USER_URL }}
+          SUPABASE_TEST_USER_KEY=${{ vars.SUPABASE_TEST_USER_KEY }}
+          SUPABASE_TEST_USER_USER_EMAIL=${{ vars.SUPABASE_TEST_USER_USER_EMAIL }}
+          SUPABASE_TEST_USER_USER_ID=${{ vars.SUPABASE_TEST_USER_USER_ID }}
+          # firebase vars
+          BACKMESH_FIREBASE_KEY=${{ vars.BACKMESH_FIREBASE_KEY }}
+          FIREBASE_TEST_USER_APP_ID=${{ vars.FIREBASE_TEST_USER_APP_ID }}
+          FIREBASE_TEST_USER_ID=${{ vars.FIREBASE_TEST_USER_ID }}
+          FIREBASE_TEST_USER_EMAIL=${{ vars.FIREBASE_TEST_USER_EMAIL }}
+          FIREBASE_TEST_USER_KEY=${{ vars.FIREBASE_TEST_USER_KEY }}
+          # firebase vars, users of test user
+          FIREBASE_TEST_USER_USER_1_EMAIL=${{ vars.FIREBASE_TEST_USER_USER_1_EMAIL }}
+          FIREBASE_TEST_USER_USER_1_ID=${{ vars.FIREBASE_TEST_USER_USER_1_ID }}
+          FIREBASE_TEST_USER_USER_2_EMAIL=${{ vars.FIREBASE_TEST_USER_USER_2_EMAIL }}
+          FIREBASE_TEST_USER_USER_2_ID=${{ vars.FIREBASE_TEST_USER_USER_2_ID }}
+          EOL
 
       - name: Run tests
         run: npx vitest run
