@@ -48,6 +48,7 @@ jobs:
 
   deploy:
     needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -57,6 +58,6 @@ jobs:
         run: npm install
 
       - name: Deploy to Cloudflare
-        run: npx wrangler deploy --var BACKMESH_KV_ID=${{ vars.BACKMESH_KV_ID }}
+        run: npx wrangler deploy
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
