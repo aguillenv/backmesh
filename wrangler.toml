@@ -12,7 +12,7 @@ routes = [
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
 [[kv_namespaces]]
 binding = "BACKMESH_KV"
-id = "$BACKMESH_KV_ID"
+id = "BACKMESH_KV_ID"
 
 # Automatically place your workloads in an optimal location to minimize latency.
 # If you are running back-end logic in a Worker, running it closer to your back-end infrastructure
