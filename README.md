@@ -21,7 +21,7 @@ await OpenAI.instance.chat(...)
 
 ## Get started
 
-Backmesh can be deployed to your own Cloudflare account. Check out the pricing and usage limits for the different Cloudflare worker plans: https://developers.cloudflare.com/workers/platform/limits/ or use our [hosted SaaS](https://app.backmesh.com) with [pricing plans](https://backmesh.com/pricing/) starting at $8 per month.
+Backmesh can be deployed to your own Cloudflare account. Check out the pricing and [usage limits](https://developers.cloudflare.com/workers/platform/limits/) for the different Cloudflare worker plans or use our [hosted SaaS](https://app.backmesh.com) with [pricing plans](https://backmesh.com/pricing/) starting at $8 per month.
 
 ## Contribute
 
