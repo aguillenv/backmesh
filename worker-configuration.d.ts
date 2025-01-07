@@ -3,6 +3,7 @@
 interface Env {
 	BACKMESH_KV: KVNamespace;
 	BACKMESH_FIREBASE_KEY: string;
+	BACKMESH_KV_ID: string;
 	TEST_USER_PASS: string;
 	TEST_USER_GEMINI_API_KEY: string;
 	TEST_USER_OPENAI_API_KEY: string;
